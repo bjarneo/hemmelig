@@ -1,0 +1,49 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+*.wasm
+*.o
+*.cgo1.go
+*.cgo2.c
+*.cgo2.h
+*.syso
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go generate command
+*.pb.go
+
+# Dependency directories (golang can still use these if they are in GOPATH)
+vendor/
+
+# Go module cache
+.go/
+
+# IDEs and editors
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+
+# Package management
+go.sum
+go.mod
+
+# Build cache
+.cache/
+
+# Other
+*.swp
+*.bak
+*.tmp
+*.local.*
