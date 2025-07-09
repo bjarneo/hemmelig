@@ -19,4 +19,5 @@ type MessageSender interface {
 	SendFileChunk(chunk []byte)
 	SendFileDone()
 	SendProgress(percent float64)
+	SendPeerPublicKey(publicKey []byte)
 }

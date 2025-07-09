@@ -29,12 +29,13 @@ func ListenAndServe(addr string, sender core.MessageSender) {
 	}
 	sender.SendConnection(conn)
 
-	sharedKey, err := crypto.PerformKeyExchange(conn, true)
+	sharedKey, peerPublicKey, err := crypto.PerformKeyExchange(conn, true)
 	if err != nil {
 		sender.SendError(err)
 		return
 	}
 	sender.SendSharedKey(sharedKey)
+	sender.SendPeerPublicKey(peerPublicKey)
 
 	ListenForMessages(conn, sharedKey, sender)
 }
@@ -48,12 +49,13 @@ func ConnectToServer(addr string, sender core.MessageSender) {
 	}
 	sender.SendConnection(conn)
 
-	sharedKey, err := crypto.PerformKeyExchange(conn, false)
+	sharedKey, peerPublicKey, err := crypto.PerformKeyExchange(conn, false)
 	if err != nil {
 		sender.SendError(err)
 		return
 	}
 	sender.SendSharedKey(sharedKey)
+	sender.SendPeerPublicKey(peerPublicKey)
 
 	ListenForMessages(conn, sharedKey, sender)
 }

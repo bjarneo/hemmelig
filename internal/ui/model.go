@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"os"
@@ -63,6 +64,9 @@ func (m *Model) SendFileDone() {
 func (m *Model) SendProgress(percent float64) {
 	m.Program.Send(m.Progress.SetPercent(percent)())}
 
+func (m *Model) SendPeerPublicKey(publicKey []byte) {
+	m.Program.Send(PeerPublicKeyMsg{PublicKey: publicKey})}
+
 
 // Model represents the Bubble Tea UI model.
 type Model struct {
@@ -92,6 +96,7 @@ type Model struct {
 	ReceivingFile      *os.File
 	TotalBytesReceived int64
 	ShowHelp           bool
+	PeerFingerprint    string
 }
 
 // NewModel creates a new UI model.
@@ -270,6 +275,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return nil
 		}
 		return m, cmd
+
+	case PeerPublicKeyMsg:
+		hash := sha256.Sum256(msg.PublicKey)
+		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8]) // Use first 8 bytes for a shorter fingerprint
+		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer's Key Fingerprint: %s", m.PeerFingerprint)))
+		m.Messages = append(m.Messages, SystemStyle.Render("Please verify this fingerprint with your peer through a trusted channel."))
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
