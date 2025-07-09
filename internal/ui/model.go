@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -81,6 +82,7 @@ type Model struct {
 	Progress progress.Model
 	Messages []string
 	IsReady  bool
+	IsConnected bool
 
 	// File transfer state
 	IsTransferring     bool
@@ -89,6 +91,7 @@ type Model struct {
 	PendingOffer       protocol.FileMetadata
 	ReceivingFile      *os.File
 	TotalBytesReceived int64
+	ShowHelp           bool
 }
 
 // NewModel creates a new UI model.
@@ -155,6 +158,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Conn.Close()
 			}
 			return m, tea.Quit
+		case tea.KeyRunes:
+			if len(msg.Runes) > 0 && msg.Runes[0] == '?' {
+				m.ShowHelp = !m.ShowHelp
+				return m, nil
+			}
 		case tea.KeyEnter:
 			// If we are currently in the process of confirming a file transfer
 			if m.PendingOffer.FileName != "" {
@@ -208,6 +216,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					filePath := strings.TrimPrefix(text, "/send ")
 					m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Offering to send file: %s", filePath)))
 					m.IsAwaitingAcceptance = true
+					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
 										cmd := func() tea.Msg {
 						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, m)
 						return nil
@@ -215,7 +224,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, cmd
 				}
 
-				m.Messages = append(m.Messages, SenderStyle.Render(m.Nickname+": ")+text)
+				m.Messages = append(m.Messages, fmt.Sprintf("%s %s%s", TimestampStyle.Render(time.Now().Format("15:04")), SenderStyle.Render(m.Nickname+": "), text))
 				cmd := func() tea.Msg {
 					if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeText, []byte(text)); err != nil {
 						return ErrorMsg{Err: err}
@@ -247,11 +256,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ConnectionMsg:
 		m.Conn = msg.Conn
-		m.Status = "Connection established. Performing key exchange..."
+		m.Status = "CONNECTING: Performing key exchange..."
+		m.IsConnected = true
 
 	case SharedKeyMsg:
 		m.SharedKey = msg.Key
-		m.Status = "✅ Secure connection established. Exchanging nicknames..."
+		m.Status = fmt.Sprintf("CONNECTED to %s: Exchanging nicknames...", m.Conn.RemoteAddr().String())
 		// Send our nickname to the peer
 		cmd := func() tea.Msg {
 			if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeNickname, []byte(m.Nickname)); err != nil {
@@ -263,22 +273,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
-		m.Status = fmt.Sprintf("✅ Secure connection established with %s. You can now chat.", m.PeerNickname)
+		m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		m.IsReady = true
 		m.Viewport.SetContent(SystemStyle.Render(fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /send <file_path> to send a file.", m.Nickname, m.PeerNickname)))
 		m.Viewport.GotoBottom()
 
 	case ReceivedTextMsg:
-		m.Messages = append(m.Messages, ReceiverStyle.Render(m.PeerNickname+": ")+msg.Text)
+		m.Messages = append(m.Messages, fmt.Sprintf("%s %s%s", TimestampStyle.Render(time.Now().Format("15:04")), ReceiverStyle.Render(m.PeerNickname+": "), msg.Text))
 
 	case FileOfferMsg:
 		m.PendingOffer = msg.Metadata
 		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)))
+		m.Status = fmt.Sprintf("TRANSFERRING: Receiving file offer for %s", msg.Metadata.FileName)
 
 	case FileOfferAcceptedMsg:
 		m.IsAwaitingAcceptance = false
 		m.IsTransferring = true
 		m.Progress.SetPercent(0)
+		m.Status = fmt.Sprintf("TRANSFERRING: Sending %s", filepath.Base(msg.Metadata.OriginalPath))
 		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)))
 		return m, func() tea.Msg {
 			filetransfer.SendFileChunks(m.Conn, m.SharedKey, msg.Metadata.OriginalPath, m)
@@ -288,6 +300,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FileOfferRejectedMsg:
 		m.IsAwaitingAcceptance = false
 		m.Messages = append(m.Messages, SystemStyle.Render("Peer rejected the file transfer."))
+		if m.IsConnected {
+			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
+		} else {
+			m.Status = "Idle"
+		}
 
 	case FileChunkMsg:
 		if m.IsReceiving && m.ReceivingFile != nil {
@@ -310,6 +327,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.IsTransferring = false
 			m.IsReceiving = false
 			m.Messages = append(m.Messages, SystemStyle.Render("File transfer complete."))
+			if m.IsConnected {
+				m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
+			} else {
+				m.Status = "Idle"
+			}
 		}
 
 	case ProgressMsg:
@@ -333,11 +355,28 @@ func (m *Model) View() string {
 	if m.Err != nil {
 		return fmt.Sprintf("An error occurred: %v\n\nPress Ctrl+C to quit.", m.Err)
 	}
+
+	if m.ShowHelp {
+		return m.helpView()
+	}
+
 	return fmt.Sprintf(
 		"%s\n%s\n%s",
 		m.headerView(),
 		ViewportStyle.Render(m.Viewport.View()),
 		m.footerView(),
+	)
+}
+
+func (m *Model) helpView() string {
+	return lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).Render(
+		"Available Commands:\n" +
+		"  /send <file_path> - Send a file\n" +
+		"  /quit             - Disconnect and exit\n" +
+		"\nKeybindings:\n" +
+		"  ?                 - Toggle help\n" +
+		"  Ctrl+C/Esc        - Disconnect and exit\n" +
+		"  Enter             - Send message or confirm file transfer\n",
 	)
 }
 

@@ -10,4 +10,5 @@ var (
 	SenderStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 	ReceiverStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
 	SystemStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Italic(true)
+	TimestampStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
 )
