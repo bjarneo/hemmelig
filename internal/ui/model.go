@@ -27,6 +27,10 @@ func (m *Model) SendError(err error) {
 	m.Program.Send(ErrorMsg{Err: err})
 }
 
+func (m *Model) SendInfo(info string) {
+	m.Program.Send(InfoMsg{Info: info})
+}
+
 func (m *Model) SendConnection(conn net.Conn) {
 	m.Program.Send(ConnectionMsg{Conn: conn})
 }
@@ -55,6 +59,10 @@ func (m *Model) SendFileOfferRejected() {
 	m.Program.Send(FileOfferRejectedMsg{})
 }
 
+func (m *Model) SendFileOfferFailed(reason string) {
+	m.Program.Send(FileOfferFailedMsg{Reason: reason})
+}
+
 func (m *Model) SendFileChunk(chunk []byte) {
 	m.Program.Send(FileChunkMsg{Chunk: chunk})
 }
@@ -72,6 +80,10 @@ func (m *Model) SendPeerPublicKey(publicKey []byte) {
 func (m *Model) SendMyPublicKey(publicKey []byte) {
 	m.Program.Send(MyPublicKeyMsg{PublicKey: publicKey})}
 
+
+type InfoMsg struct {
+	Info string
+}
 
 // Model represents the Bubble Tea UI model.
 type Model struct {
@@ -104,10 +116,11 @@ type Model struct {
 	ShowHelp           bool
 	PeerFingerprint    string
 	MyFingerprint      string
+	MaxFileSize        int64
 }
 
 // NewModel creates a new UI model.
-func NewModel(relayServerAddr, sessionID, nickname, command string) *Model {
+func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize int64) *Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message or /send <file_path>..."
 	ta.Focus()
@@ -130,6 +143,7 @@ func NewModel(relayServerAddr, sessionID, nickname, command string) *Model {
 		Progress:        prog,
 		Messages:        []string{},
 		Command:         command,
+		MaxFileSize:     maxFileSize * 1024 * 1024, // Convert MB to bytes
 	}
 }
 
@@ -260,7 +274,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.IsAwaitingAcceptance = true
 					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
 										cmd := func() tea.Msg {
-						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, m)
+						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, m, m.MaxFileSize)
 						return nil
 					}
 					return m, cmd
@@ -358,6 +372,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Status = "Idle"
 		}
 
+	case FileOfferFailedMsg:
+		m.IsAwaitingAcceptance = false
+		m.Messages = append(m.Messages, ErrorStyle.Render("File offer failed: "+msg.Reason))
+		if m.IsConnected {
+			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
+		} else {
+			m.Status = "Idle"
+		}
+
 	case FileChunkMsg:
 		if m.IsReceiving && m.ReceivingFile != nil {
 			bytesWritten, err := m.ReceivingFile.Write(msg.Chunk)
@@ -390,6 +413,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		progressModel, cmd := m.Progress.Update(msg)
 		m.Progress = progressModel.(progress.Model)
 		pgCmd = cmd
+
+	case InfoMsg:
+		m.Messages = append(m.Messages, SystemStyle.Render(msg.Info))
+		return m, nil
 
 	case ErrorMsg:
 		m.Err = msg.Err

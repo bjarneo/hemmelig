@@ -13,7 +13,7 @@ import (
 )
 
 // RequestSendFile initiates a file transfer by sending a file offer.
-func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender) {
+func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender, maxFileSize int64) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		sender.SendError(fmt.Errorf("could not open file: %w", err))
@@ -24,6 +24,11 @@ func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender co
 	fileInfo, err := file.Stat()
 	if err != nil {
 		sender.SendError(fmt.Errorf("could not get file info: %w", err))
+		return
+	}
+
+	if fileInfo.Size() > maxFileSize {
+		sender.SendFileOfferFailed(fmt.Sprintf("file size (%.2f MB) exceeds the limit (%.2f MB)", float64(fileInfo.Size())/1024/1024, float64(maxFileSize)/1024/1024))
 		return
 	}
 
