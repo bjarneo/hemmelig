@@ -36,8 +36,8 @@ Thumbs.db
 *.log
 
 # Package management
-go.sum
-go.mod
+# go.sum
+# go.mod
 
 # Build cache
 .cache/
