@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -158,7 +159,7 @@ func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize 
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		conn, err := net.Dial("tcp", m.RelayServerAddr)
+		conn, err := tls.Dial("tcp", m.RelayServerAddr, nil)
 		if err != nil {
 			return ErrorMsg{Err: fmt.Errorf("failed to connect to relay server: %w", err)}
 		}
