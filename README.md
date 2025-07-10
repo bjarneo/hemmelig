@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Hemmelig Logo" width="200"/>
+</p>
+
 # Hemmelig: Encrypted Chat with Relay Server
 
 Hemmelig is a secure, end-to-end encrypted chat application designed for direct peer-to-peer communication. This version introduces a **Relay Server** to overcome Network Address Translation (NAT) traversal issues, allowing users behind restrictive firewalls to connect and chat securely. The relay server acts as a simple switchboard, forwarding encrypted data between clients without ever decrypting or inspecting the messages, thus preserving end-to-end encryption.
