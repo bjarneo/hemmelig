@@ -61,27 +61,34 @@ The relay server has been hardened against several common attacks:
 ## Communication Flow
 
 ```mermaid
-graph TD
-    subgraph Client 1
-        C1[Hemmelig Client 1]
-    end
+sequenceDiagram
+    participant C1 as Client 1
+    participant RS as Relay Server
+    participant C2 as Client 2
 
-    subgraph Client 2
-        C2[Hemmelig Client 2]
-    end
+    C1->>RS: 1. TCP Connect & CREATE Session
+    RS-->>C1: 2. Session ID
+    Note over C1: Waiting for peer...
 
-    subgraph Relay Server
-        RS[Relay Server]
-    end
+    C2->>RS: 3. TCP Connect & JOIN Session (with ID)
+    RS-->>C2: 4. Join Confirmation
+    RS-->>C1: 5. Peer Joined Notification
 
-    C1 -- "1. Connect & CREATE Session" --> RS
-    RS -- "2. Session ID" --> C1
-    C2 -- "3. Connect & JOIN Session (with ID)" --> RS
-    RS -- "4. Session Joined Confirmation" --> C2
-    C1 -- "5. Encrypted Data" --> RS
-    RS -- "6. Forward Encrypted Data" --> C2
-    C2 -- "7. Encrypted Data" --> RS
-    RS -- "8. Forward Encrypted Data" --> C1
+    par Key Exchange
+        C1->>RS: Send Public Key
+        RS->>C2: Forward Public Key
+    and
+        C2->>RS: Send Public Key
+        RS->>C1: Forward Public Key
+    end
+    Note over C1,C2: Both clients now have the shared secret
+
+    loop Encrypted Communication
+        C1->>RS: Encrypted Data (Messages/Files)
+        RS->>C2: Forward Encrypted Data
+        C2->>RS: Encrypted Data (Messages/Files)
+        RS->>C1: Forward Encrypted Data
+    end
 ```
 
 ## Trust On First Use (TOFU)
