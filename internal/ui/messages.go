@@ -18,6 +18,7 @@ type (
 	FileOfferAcceptedMsg struct{ Metadata protocol.FileMetadata } // Sent from receiver to sender
 	FileOfferRejectedMsg struct{}
 	FileOfferFailedMsg   struct{ Reason string }
+	FileSendingCompleteMsg struct{}
 	FileChunkMsg         struct{ Chunk []byte }
 	FileDoneMsg          struct{}
 	ProgressMsg          progress.FrameMsg

@@ -63,6 +63,10 @@ func (m *Model) SendFileOfferFailed(reason string) {
 	m.Program.Send(FileOfferFailedMsg{Reason: reason})
 }
 
+func (m *Model) SendFileSendingComplete() {
+	m.Program.Send(FileSendingCompleteMsg{})
+}
+
 func (m *Model) SendFileChunk(chunk []byte) {
 	m.Program.Send(FileChunkMsg{Chunk: chunk})
 }
@@ -375,6 +379,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FileOfferFailedMsg:
 		m.IsAwaitingAcceptance = false
 		m.Messages = append(m.Messages, ErrorStyle.Render("File offer failed: "+msg.Reason))
+		if m.IsConnected {
+			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
+		} else {
+			m.Status = "Idle"
+		}
+
+	case FileSendingCompleteMsg:
+		m.IsTransferring = false
+		m.Messages = append(m.Messages, SystemStyle.Render("File transfer complete."))
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {

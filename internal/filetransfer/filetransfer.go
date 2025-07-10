@@ -79,5 +79,8 @@ func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender cor
 
 	if err := network.SendData(conn, sharedKey, protocol.TypeFileDone, nil); err != nil {
 		sender.SendError(fmt.Errorf("could not send file done message: %w", err))
+		return
 	}
+
+	sender.SendFileSendingComplete()
 }

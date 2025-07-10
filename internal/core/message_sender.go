@@ -18,6 +18,7 @@ type MessageSender interface {
 	SendFileOfferAccepted(metadata protocol.FileMetadata)
 	SendFileOfferRejected()
 	SendFileOfferFailed(reason string)
+	SendFileSendingComplete()
 	SendFileChunk(chunk []byte)
 	SendFileDone()
 	SendProgress(percent float64)
