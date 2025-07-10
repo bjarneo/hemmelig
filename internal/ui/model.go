@@ -464,7 +464,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		case FileTransferProgress:
+	case FileTransferProgress:
 		percent := float64(msg)
 		pgCmd = m.Progress.SetPercent(percent)
 		if percent >= 1.0 && !m.IsReceiving {
@@ -489,7 +489,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-		m.Viewport.GotoBottom()
+	m.Viewport.GotoBottom()
 
 	return m, tea.Batch(taCmd, vpCmd, pgCmd)
 }
