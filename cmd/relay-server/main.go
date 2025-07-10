@@ -138,20 +138,48 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	}
 }
 
-// relayData relays data from src to dst.
+// relayData relays data from src to dst, closing the session on error or inactivity.
 func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 	defer func() {
 		src.Close()
 		dst.Close()
-		log.Printf("Session %s closed due to disconnection.", sessionID)
 		s.mu.Lock()
-		delete(s.sessions, sessionID)
+		// Check if session exists before deleting to avoid race conditions
+		// where a session is closed by two relayData routines simultaneously.
+		if _, ok := s.sessions[sessionID]; ok {
+			log.Printf("Session %s closed.", sessionID)
+			delete(s.sessions, sessionID)
+		}
 		s.mu.Unlock()
 	}()
 
-	_, err := io.Copy(dst, src)
-	if err != nil {
-		log.Printf("Error relaying data in session %s: %v", sessionID, err)
+	buf := make([]byte, 4096) // 4KB buffer is efficient
+	for {
+		// Set a 5-minute deadline for the next read.
+		if err := src.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
+			log.Printf("Could not set read deadline for session %s: %v", sessionID, err)
+			return
+		}
+
+		nr, err := src.Read(buf)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				log.Printf("Session %s timed out due to 5 minutes of inactivity.", sessionID)
+			} else if err != io.EOF {
+				// Don't log EOF errors, as they are expected when a client disconnects.
+				log.Printf("Error reading from session %s: %v", sessionID, err)
+			}
+			// On any error (timeout, EOF, etc.), we exit and let the defer handle cleanup.
+			return
+		}
+
+		if nr > 0 {
+			_, err := dst.Write(buf[0:nr])
+			if err != nil {
+				log.Printf("Error writing to session %s: %v", sessionID, err)
+				return
+			}
+		}
 	}
 }
 
