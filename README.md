@@ -15,6 +15,28 @@ Hemmelig is a secure, end-to-end encrypted chat and file transfer application de
 - **Tab Completion:** Basic tab completion for file paths when using the `/send` command.
 - **Trust On First Use (TOFU):** Verify peer identity through public key fingerprints.
 
+## Installation
+
+You can install the `hemmelig` client by downloading a pre-compiled binary from the [GitHub Releases page](https://github.com/bjarneo/hemmelig/releases) or by using the installation script below.
+
+### Install Script (Linux & macOS)
+
+This script will automatically detect your OS and architecture, download the latest binary, verify its checksum, and install it to `$HOME/.local/bin`.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/bjarneo/hemmelig/main/install.sh | sh
+```
+
+After installation, you may need to add the installation directory to your shell's `PATH`.
+
+```bash
+# For Bash users (usually in ~/.bashrc)
+export PATH="$HOME/.local/bin:$PATH"
+
+# For Zsh users (usually in ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 ## How to Use
 
 ### 1. Build the Applications
@@ -35,7 +57,8 @@ Run the relay server in a terminal. By default, it listens on port `8080`.
 ```
 
 You can customize the server's behavior with the following flag:
--   `-max-data-relayed <MB>`: Sets the maximum amount of data (in MB) a single session can relay before being terminated. Defaults to 50MB.
+
+- `-max-data-relayed <MB>`: Sets the maximum amount of data (in MB) a single session can relay before being terminated. Defaults to 50MB.
 
 ### 3. Start the Hemmelig Client
 
@@ -46,17 +69,18 @@ Open a new terminal to start the client. You will be prompted to create or join 
 ```
 
 The client can be customized with the following flags:
--   `-relay-server-addr <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
--   `-session-id <id>`: Immediately joins a session with the given ID without prompting.
--   `-max-file-size <MB>`: Sets the maximum size (in MB) for files you can send. Defaults to 10MB.
+
+- `-relay-server-addr <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
+- `-session-id <id>`: Immediately joins a session with the given ID without prompting.
+- `-max-file-size <MB>`: Sets the maximum size (in MB) for files you can send. Defaults to 10MB.
 
 ## Security Features
 
 The relay server has been hardened against several common attacks:
 
--   **Connection Flooding / Slowloris Attack:** The server enforces a 30-second timeout for new connections. If a client fails to send its initial `CREATE` or `JOIN` command within this window, its connection is dropped.
--   **Bandwidth Exhaustion:** To prevent a malicious client from consuming unlimited bandwidth, the total amount of data that can be relayed in a single session is capped (default 50MB, configurable via the `-max-data-relayed` flag).
--   **Inactivity Timeout:** Sessions are automatically terminated if no data is sent or received from either client for 5 minutes, freeing up server resources.
+- **Connection Flooding / Slowloris Attack:** The server enforces a 30-second timeout for new connections. If a client fails to send its initial `CREATE` or `JOIN` command within this window, its connection is dropped.
+- **Bandwidth Exhaustion:** To prevent a malicious client from consuming unlimited bandwidth, the total amount of data that can be relayed in a single session is capped (default 50MB, configurable via the `-max-data-relayed` flag).
+- **Inactivity Timeout:** Sessions are automatically terminated if no data is sent or received from either client for 5 minutes, freeing up server resources.
 
 ## Communication Flow
 
@@ -96,3 +120,4 @@ sequenceDiagram
 **TOFU** is a security model where the first time you connect to a peer, you save their public key fingerprint. On all future connections, the client will verify that the fingerprint matches.
 
 In Hemmelig, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
+
