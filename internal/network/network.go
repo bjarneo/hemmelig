@@ -42,8 +42,12 @@ func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isI
 	for {
 		msgType, err := reader.ReadByte()
 		if err != nil {
-			if err != io.EOF {
-				sender.SendError(fmt.Errorf("connection closed by peer: %w", err))
+			// If we get an EOF, it means the connection was closed.
+			// This could be the server terminating an inactive session.
+			if err == io.EOF {
+				sender.SendConnectionClosed()
+			} else {
+				sender.SendError(fmt.Errorf("connection read error: %w", err))
 			}
 			return
 		}

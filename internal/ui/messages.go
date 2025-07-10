@@ -24,5 +24,6 @@ type (
 	ProgressMsg          progress.FrameMsg
 	MyPublicKeyMsg       struct{ PublicKey []byte }
 	PeerPublicKeyMsg     struct{ PublicKey []byte }
+	ConnectionClosedMsg  struct{}
 	ErrorMsg             struct{ Err error }
 )

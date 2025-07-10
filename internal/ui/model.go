@@ -84,6 +84,10 @@ func (m *Model) SendPeerPublicKey(publicKey []byte) {
 func (m *Model) SendMyPublicKey(publicKey []byte) {
 	m.Program.Send(MyPublicKeyMsg{PublicKey: publicKey})}
 
+func (m *Model) SendConnectionClosed() {
+	m.Program.Send(ConnectionClosedMsg{})
+}
+
 
 type InfoMsg struct {
 	Info string
@@ -445,6 +449,14 @@ if m.IsReady {
 
 	case InfoMsg:
 		m.Messages = append(m.Messages, SystemStyle.Render(msg.Info))
+		return m, nil
+
+	case ConnectionClosedMsg:
+		m.IsConnected = false
+		m.Status = "DISCONNECTED: Connection closed by server (session may have timed out)."
+		m.Messages = append(m.Messages, ErrorStyle.Render(m.Status))
+		// We don't quit here, to allow the user to see the message.
+		// They can exit with Ctrl+C.
 		return m, nil
 
 	case ErrorMsg:

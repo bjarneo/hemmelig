@@ -24,4 +24,5 @@ type MessageSender interface {
 	SendProgress(percent float64)
 	SendPeerPublicKey(publicKey []byte)
 	SendMyPublicKey(publicKey []byte)
+	SendConnectionClosed()
 }
