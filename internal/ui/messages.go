@@ -22,6 +22,7 @@ type (
 	FileChunkMsg         struct{ Chunk []byte }
 	FileDoneMsg          struct{}
 	ProgressMsg          progress.FrameMsg
+	FileTransferProgress float64
 	MyPublicKeyMsg       struct{ PublicKey []byte }
 	PeerPublicKeyMsg     struct{ PublicKey []byte }
 	ConnectionClosedMsg  struct{}

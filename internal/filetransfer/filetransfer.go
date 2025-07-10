@@ -81,6 +81,4 @@ func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender cor
 		sender.SendError(fmt.Errorf("could not send file done message: %w", err))
 		return
 	}
-
-	sender.SendFileSendingComplete()
 }

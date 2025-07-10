@@ -80,9 +80,7 @@ func (pms *programMessageSender) SendFileDone() {
 }
 
 func (pms *programMessageSender) SendProgress(percent float64) {
-	// This is a bit of a hack, but it works.
-	// The progress bar is updated via a command, so we need to send a command here.
-	// We can't directly update the progress bar from here.
+	pms.program.Send(FileTransferProgress(percent))
 }
 
 func (pms *programMessageSender) SendPeerPublicKey(publicKey []byte) {
@@ -466,10 +464,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case ProgressMsg:
-		progressModel, cmd := m.Progress.Update(msg)
-		m.Progress = progressModel.(progress.Model)
-		pgCmd = cmd
+		case FileTransferProgress:
+		percent := float64(msg)
+		pgCmd = m.Progress.SetPercent(percent)
+		if percent >= 1.0 && !m.IsReceiving {
+			return m, func() tea.Msg { return FileSendingCompleteMsg{} }
+		}
 
 	case InfoMsg:
 		m.Messages = append(m.Messages, SystemStyle.Render(msg.Info))
@@ -489,7 +489,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-	m.Viewport.GotoBottom()
+		m.Viewport.GotoBottom()
 
 	return m, tea.Batch(taCmd, vpCmd, pgCmd)
 }
