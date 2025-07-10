@@ -23,72 +23,79 @@ import (
 	"github.com/dothash/hemmelig-cli/internal/protocol"
 )
 
-// Implement the MessageSender interface
-func (m *Model) SendError(err error) {
-	m.Program.Send(ErrorMsg{Err: err})
+type programMessageSender struct {
+	program *tea.Program
 }
 
-func (m *Model) SendInfo(info string) {
-	m.Program.Send(InfoMsg{Info: info})
+func (pms *programMessageSender) SendError(err error) {
+	pms.program.Send(ErrorMsg{Err: err})
 }
 
-func (m *Model) SendConnection(conn net.Conn) {
-	m.Program.Send(ConnectionMsg{Conn: conn})
+func (pms *programMessageSender) SendInfo(info string) {
+	pms.program.Send(InfoMsg{Info: info})
 }
 
-func (m *Model) SendSharedKey(key []byte) {
-	m.Program.Send(SharedKeyMsg{Key: key})
+func (pms *programMessageSender) SendConnection(conn net.Conn) {
+	pms.program.Send(ConnectionMsg{Conn: conn})
 }
 
-func (m *Model) SendReceivedNickname(nickname string) {
-	m.Program.Send(ReceivedNicknameMsg{Nickname: nickname})
+func (pms *programMessageSender) SendSharedKey(key []byte) {
+	pms.program.Send(SharedKeyMsg{Key: key})
 }
 
-func (m *Model) SendReceivedText(text string) {
-	m.Program.Send(ReceivedTextMsg{Text: text})
+func (pms *programMessageSender) SendReceivedNickname(nickname string) {
+	pms.program.Send(ReceivedNicknameMsg{Nickname: nickname})
 }
 
-func (m *Model) SendFileOffer(metadata protocol.FileMetadata) {
-	m.Program.Send(FileOfferMsg{Metadata: metadata})
+func (pms *programMessageSender) SendReceivedText(text string) {
+	pms.program.Send(ReceivedTextMsg{Text: text})
 }
 
-func (m *Model) SendFileOfferAccepted(metadata protocol.FileMetadata) {
-	m.Program.Send(FileOfferAcceptedMsg{Metadata: metadata})
+func (pms *programMessageSender) SendFileOffer(metadata protocol.FileMetadata) {
+	pms.program.Send(FileOfferMsg{Metadata: metadata})
 }
 
-func (m *Model) SendFileOfferRejected() {
-	m.Program.Send(FileOfferRejectedMsg{})
+func (pms *programMessageSender) SendFileOfferAccepted(metadata protocol.FileMetadata) {
+	pms.program.Send(FileOfferAcceptedMsg{Metadata: metadata})
 }
 
-func (m *Model) SendFileOfferFailed(reason string) {
-	m.Program.Send(FileOfferFailedMsg{Reason: reason})
+func (pms *programMessageSender) SendFileOfferRejected() {
+	pms.program.Send(FileOfferRejectedMsg{})
 }
 
-func (m *Model) SendFileSendingComplete() {
-	m.Program.Send(FileSendingCompleteMsg{})
+func (pms *programMessageSender) SendFileOfferFailed(reason string) {
+	pms.program.Send(FileOfferFailedMsg{Reason: reason})
 }
 
-func (m *Model) SendFileChunk(chunk []byte) {
-	m.Program.Send(FileChunkMsg{Chunk: chunk})
+func (pms *programMessageSender) SendFileSendingComplete() {
+	pms.program.Send(FileSendingCompleteMsg{})
 }
 
-func (m *Model) SendFileDone() {
-	m.Program.Send(FileDoneMsg{})
+func (pms *programMessageSender) SendFileChunk(chunk []byte) {
+	pms.program.Send(FileChunkMsg{Chunk: chunk})
 }
 
-func (m *Model) SendProgress(percent float64) {
-	m.Program.Send(m.Progress.SetPercent(percent)())}
-
-func (m *Model) SendPeerPublicKey(publicKey []byte) {
-	m.Program.Send(PeerPublicKeyMsg{PublicKey: publicKey})}
-
-func (m *Model) SendMyPublicKey(publicKey []byte) {
-	m.Program.Send(MyPublicKeyMsg{PublicKey: publicKey})}
-
-func (m *Model) SendConnectionClosed() {
-	m.Program.Send(ConnectionClosedMsg{})
+func (pms *programMessageSender) SendFileDone() {
+	pms.program.Send(FileDoneMsg{})
 }
 
+func (pms *programMessageSender) SendProgress(percent float64) {
+	// This is a bit of a hack, but it works.
+	// The progress bar is updated via a command, so we need to send a command here.
+	// We can't directly update the progress bar from here.
+}
+
+func (pms *programMessageSender) SendPeerPublicKey(publicKey []byte) {
+	pms.program.Send(PeerPublicKeyMsg{PublicKey: publicKey})
+}
+
+func (pms *programMessageSender) SendMyPublicKey(publicKey []byte) {
+	pms.program.Send(MyPublicKeyMsg{PublicKey: publicKey})
+}
+
+func (pms *programMessageSender) SendConnectionClosed() {
+	pms.program.Send(ConnectionClosedMsg{})
+}
 
 type InfoMsg struct {
 	Info string
@@ -195,12 +202,9 @@ func (m *Model) Init() tea.Cmd {
 
 		if strings.HasPrefix(response, "Session created:") {
 			m.SessionID = strings.TrimSpace(strings.TrimPrefix(response, "Session created:"))
-			m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("New session created with ID: %s. Share this ID with your peer.\n", m.SessionID)))
 		}
 
-		m.Program.Send(ConnectionMsg{Conn: conn})
-		network.ListenForMessages(conn, nil, m, m.Command == "CREATE") // Pass isInitiator flag
-		return nil
+		return ConnectionMsg{Conn: conn}
 	}
 }
 
@@ -304,9 +308,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.IsAwaitingAcceptance = true
 					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
 								cmd := func() tea.Msg {
-						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, m, m.MaxFileSize)
-						return nil
-					}
+							filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, &programMessageSender{program: m.Program}, m.MaxFileSize)
+							return nil
+						}
 					return m, cmd
 				}
 
@@ -331,15 +335,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		infoPaneHeight := lipgloss.Height(m.infoPaneView())
 		footerHeight := lipgloss.Height(m.footerView())
 		verticalMargin := headerHeight + infoPaneHeight + footerHeight
-m.Viewport.Width = msg.Width
-m.Viewport.Height = msg.Height - verticalMargin
-ViewportStyle = ViewportStyle.Width(msg.Width - 2)
-m.Textarea.SetWidth(msg.Width)
-TextareaStyle = TextareaStyle.Width(msg.Width - 2)
-m.Progress.Width = msg.Width - 4
-if m.IsReady {
-	m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-}
+		m.Viewport.Width = msg.Width
+		m.Viewport.Height = msg.Height - verticalMargin
+		ViewportStyle = ViewportStyle.Width(msg.Width - 2)
+		m.Textarea.SetWidth(msg.Width)
+		TextareaStyle = TextareaStyle.Width(msg.Width - 2)
+		m.Progress.Width = msg.Width - 4
+		if m.IsReady {
+			m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
+		}
 
 	case progress.FrameMsg:
 		progressModel, cmd := m.Progress.Update(msg)
@@ -350,6 +354,7 @@ if m.IsReady {
 		m.Conn = msg.Conn
 		m.Status = "CONNECTING: Performing key exchange..."
 		m.IsConnected = true
+		go network.ListenForMessages(m.Conn, nil, &programMessageSender{program: m.Program}, m.Command == "CREATE")
 
 	case SharedKeyMsg:
 		m.SharedKey = msg.Key
@@ -362,6 +367,7 @@ if m.IsReady {
 			return nil
 		}
 		return m, cmd
+
 
 	case MyPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
@@ -394,7 +400,7 @@ if m.IsReady {
 		m.Status = fmt.Sprintf("TRANSFERRING: Sending %s", filepath.Base(msg.Metadata.OriginalPath))
 		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)))
 		return m, func() tea.Msg {
-			filetransfer.SendFileChunks(m.Conn, m.SharedKey, msg.Metadata.OriginalPath, m)
+			filetransfer.SendFileChunks(m.Conn, m.SharedKey, msg.Metadata.OriginalPath, &programMessageSender{program: m.Program})
 			return nil
 		}
 
@@ -522,6 +528,9 @@ func (m *Model) infoPaneView() string {
 }
 
 func (m *Model) headerView() string {
+	if m.SessionID != "" {
+		return StatusStyle.Render(fmt.Sprintf("%s | Session ID: %s", m.Status, m.SessionID))
+	}
 	return StatusStyle.Render(m.Status)
 }
 
