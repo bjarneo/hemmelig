@@ -98,8 +98,6 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 		return
 	}
 
-
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -187,7 +185,6 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 		}
 	}
 }
-
 
 func main() {
 	maxDataRelayed := flag.Int64("max-data-relayed", 50, "Maximum data to relay per session in MB")

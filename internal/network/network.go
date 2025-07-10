@@ -15,7 +15,6 @@ import (
 
 // ListenAndServe starts a TCP listener and handles incoming connections.
 
-
 // ListenForMessages reads and processes incoming messages from the connection.
 func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isInitiator bool) {
 	reader := bufio.NewReader(conn)

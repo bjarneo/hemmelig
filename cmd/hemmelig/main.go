@@ -20,4 +20,3 @@ func main() {
 
 	ui.StartInitialUI(*relayServerAddr, maxFileSize)
 }
-
