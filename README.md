@@ -8,7 +8,7 @@ Hemmelig is a secure, end-to-end encrypted chat and file transfer application de
 
 ## Features
 
-- **End-to-End Encryption:** All messages and files are encrypted between the sender and receiver using Curve25519 for key exchange and AES-GCM for symmetric encryption.
+- **End-to-End Encryption:** All messages and files are encrypted using **AES-256-GCM**. The 256-bit symmetric key is derived from a Curve25519 key exchange.
 - **NAT Traversal:** The relay server allows clients to connect even when behind restrictive firewalls.
 - **Secure File Transfer:** Securely send files between connected peers with a configurable size limit (default 10MB).
 - **Responsive UI:** A terminal-based UI that adapts to the window size and provides a user-friendly experience.
