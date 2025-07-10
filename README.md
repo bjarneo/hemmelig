@@ -14,7 +14,7 @@ The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH
 
 - **End-to-End Encryption:** All messages and files are encrypted using **AES-256-GCM**. The 256-bit symmetric key is derived from a Curve25519 key exchange.
 - **NAT Traversal:** The relay server allows clients to connect even when behind restrictive firewalls.
-- **Secure File Transfer:** Securely send files between connected peers with a configurable size limit (default 10MB).
+- **Secure File Transfer:** Securely send files between connected peers with a built-in 10MB size limit.
 - **Terminal User Interface (TUI):** A responsive and user-friendly terminal UI that adapts to your window size.
 - **Tab Completion:** Basic tab completion for file paths when using the `/send` command.
 - **Trust On First Use (TOFU):** Verify peer identity through public key fingerprints.

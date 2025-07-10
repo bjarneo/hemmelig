@@ -14,9 +14,9 @@ import (
 )
 
 func main() {
+	const maxFileSize = 10 // MB
 	relayServerAddr := flag.String("relay-server-addr", "localhost:8080", "Address of the relay server (e.g., localhost:8080)")
 	sessionID := flag.String("session-id", "", "Session ID to join or create")
-	maxFileSize := flag.Int64("max-file-size", 10, "Maximum file size in MB")
 	flag.Parse()
 
 	if *relayServerAddr == "" {
@@ -63,7 +63,7 @@ func main() {
 		nickname = util.GenerateRandomNickname()
 	}
 
-	initialModel := ui.NewModel(*relayServerAddr, inputSessionID, nickname, command, *maxFileSize)
+	initialModel := ui.NewModel(*relayServerAddr, inputSessionID, nickname, command, maxFileSize)
 
 	p := tea.NewProgram(initialModel, tea.WithAltScreen())
 
@@ -73,3 +73,4 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
