@@ -76,7 +76,6 @@ The client can be customized with the following flags:
 
 - `-relay-server-addr <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
 - `-session-id <id>`: Immediately joins a session with the given ID without prompting.
-- `-max-file-size <MB>`: Sets the maximum size (in MB) for files you can send. Defaults to 10MB.
 
 ## Security Features
 
