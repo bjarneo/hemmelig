@@ -55,13 +55,12 @@ func main() {
 	}
 
 	// --- Nickname Prompt ---
-	fmt.Print("Enter your nickname (or press Enter for a random Mr. Robot name): ")
+	fmt.Print("Enter your nickname (or press Enter for a random one): ")
 	nickname, _ := reader.ReadString('\n')
 	nickname = strings.TrimSpace(nickname)
 
 	if nickname == "" {
 		nickname = util.GenerateRandomNickname()
-		fmt.Printf("No nickname entered. You are now %s.\n", nickname)
 	}
 
 	initialModel := ui.NewModel(*relayServerAddr, inputSessionID, nickname, command, *maxFileSize)
