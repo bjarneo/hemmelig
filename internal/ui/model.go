@@ -130,7 +130,7 @@ type Model struct {
 // NewModel creates a new UI model.
 func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize int64) *Model {
 	ta := textarea.New()
-	ta.Placeholder = "Type a message or /send <file_path>..."
+	ta.Placeholder = "Type a message or type /help for a list of commands..."
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.SetHeight(3)
@@ -216,6 +216,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// If the help view is open, only allow Esc to close it.
+		if m.ShowHelp {
+			if msg.Type == tea.KeyEsc {
+				m.ShowHelp = false
+				return m, nil
+			}
+			return m, nil
+		}
+
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			if m.Conn != nil {
@@ -225,9 +234,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRunes:
 			if len(msg.Runes) > 0 {
 				switch msg.Runes[0] {
-				case '?':
-					m.ShowHelp = !m.ShowHelp
-					return m, nil
 				case 'y', 'Y':
 					if m.PendingOffer.FileName != "" {
 						m.Messages = append(m.Messages, SystemStyle.Render("Accepting file transfer..."))
@@ -296,11 +302,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Offering to send file: %s", filePath)))
 					m.IsAwaitingAcceptance = true
 					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
-										cmd := func() tea.Msg {
+								cmd := func() tea.Msg {
 						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, m, m.MaxFileSize)
 						return nil
 					}
 					return m, cmd
+				}
+
+				if text == "/help" {
+					m.ShowHelp = !m.ShowHelp
+					return m, nil
 				}
 
 				m.Messages = append(m.Messages, fmt.Sprintf("%s %s%s", TimestampStyle.Render(time.Now().Format("15:04")), SenderStyle.Render(m.Nickname+": "), text))
@@ -493,11 +504,12 @@ func (m *Model) helpView() string {
 	return lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).Render(
 		"Available Commands:\n" +
 			"  /send <file_path> - Send a file\n" +
+			"  /help             - Toggle this help message\n" +
 			"  /quit             - Disconnect and exit\n" +
 			"\nKeybindings:\n" +
-			"  ?                 - Toggle help\n" +
 			"  Ctrl+C/Esc        - Disconnect and exit\n" +
-			"  Enter             - Send message or confirm file transfer\n",
+			"  Enter             - Send message or confirm file transfer\n" +
+			"\n(Press Esc to close this help menu)",
 	)
 }
 
