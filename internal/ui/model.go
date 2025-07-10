@@ -249,7 +249,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.ReceivingFile = file
 					m.TotalBytesReceived = 0
 					m.Progress.SetPercent(0)
-					m.PendingOffer = protocol.FileMetadata{}
 					return m, cmd
 				} else {
 					m.Messages = append(m.Messages, SystemStyle.Render("Rejected file transfer."))
@@ -411,6 +410,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.IsReceiving {
 				m.ReceivingFile.Close()
 				m.ReceivingFile = nil
+				m.PendingOffer = protocol.FileMetadata{}
 			}
 			m.IsTransferring = false
 			m.IsReceiving = false
