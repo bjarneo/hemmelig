@@ -123,3 +123,7 @@ sequenceDiagram
 **TOFU** is a security model where the first time you connect to a peer, you save their public key fingerprint. On all future connections, the client will verify that the fingerprint matches.
 
 In Hemmelig, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
+
+## Disclaimer
+
+This software is under active development and will change rapidly. It is provided "as is" and you use it at your own risk. The author is not accountable for any issues or damages that may arise from its use.
