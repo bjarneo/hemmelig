@@ -1,0 +1,52 @@
+name: Release Hemmelig Client
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Get release version
+        id: get_version
+        run: echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+
+      - name: Build for Linux (amd64)
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-linux-amd64 ./cmd/hemmelig
+      
+      - name: Build for Linux (386)
+        run: GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o hemmelig-linux-386 ./cmd/hemmelig
+
+      - name: Build for macOS (amd64)
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-darwin-amd64 ./cmd/hemmelig
+
+      - name: Build for Windows (amd64)
+        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-windows-amd64.exe ./cmd/hemmelig
+
+      - name: Generate SHA256 checksums
+        run: |
+          sha256sum hemmelig-linux-amd64 > hemmelig-linux-amd64.sha256
+          sha256sum hemmelig-linux-386 > hemmelig-linux-386.sha256
+          sha256sum hemmelig-darwin-amd64 > hemmelig-darwin-amd64.sha256
+          sha256sum hemmelig-windows-amd64.exe > hemmelig-windows-amd64.sha256
+          cat *.sha256 > checksums.txt
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            hemmelig-linux-amd64
+            hemmelig-linux-386
+            hemmelig-darwin-amd64
+            hemmelig-windows-amd64.exe
+            checksums.txt
