@@ -9,10 +9,13 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var totalSessions int64
 
 // Session represents a chat session with two connected clients.
 type Session struct {
@@ -64,11 +67,11 @@ type ClientMessage struct {
 
 // handleConnection handles a new client connection.
 func (s *RelayServer) handleConnection(conn net.Conn) {
-	log.Printf("New connection from %s", conn.RemoteAddr())
+	log.Println("New anonymous connection received.")
 
 	// Set a deadline for reading the initial message to prevent Slowloris attacks.
 	if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		log.Printf("Could not set read deadline for %s: %v", conn.RemoteAddr(), err)
+		log.Println("Could not set read deadline for new connection.")
 		conn.Close()
 		return
 	}
@@ -76,21 +79,21 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	messageBytes, err := reader.ReadBytes('\n')
 	if err != nil {
-		log.Printf("Error reading initial message from %s: %v", conn.RemoteAddr(), err)
+		log.Println("Error reading initial message from new connection.")
 		conn.Close()
 		return
 	}
 
 	// Reset the deadline to allow for long-lived connections.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		log.Printf("Could not reset read deadline for %s: %v", conn.RemoteAddr(), err)
+		log.Println("Could not reset read deadline for connection.")
 		conn.Close()
 		return
 	}
 
 	var clientMsg ClientMessage
 	if err := json.Unmarshal(messageBytes, &clientMsg); err != nil {
-		log.Printf("Error unmarshaling initial message from %s: %v", conn.RemoteAddr(), err)
+		log.Println("Error unmarshaling initial message from connection.")
 		conn.Close()
 		return
 	}
@@ -106,7 +109,7 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	switch clientMsg.Command {
 	case "CREATE":
 		if exists {
-			log.Printf("Session %s already exists, cannot create.", sessionID)
+			log.Println("Attempted to create a session that already exists.")
 			conn.Write([]byte("Error: Session already exists\n"))
 			conn.Close()
 			return
@@ -115,18 +118,19 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 		session = &Session{ID: sessionID}
 		session.Clients[0] = conn
 		s.sessions[sessionID] = session
-		log.Printf("Created new session %s for client %s", sessionID, conn.RemoteAddr())
+		atomic.AddInt64(&totalSessions, 1)
+		log.Printf("New session created. Total active sessions: %d", len(s.sessions))
 		conn.Write([]byte(fmt.Sprintf("Session created: %s\n", sessionID)))
 
 	case "JOIN":
 		if !exists || session.Clients[1] != nil {
-			log.Printf("Session %s does not exist or is full.", sessionID)
+			log.Println("Attempted to join a session that does not exist or is full.")
 			conn.Write([]byte("Error: Session not found or full\n"))
 			conn.Close()
 			return
 		}
 		session.Clients[1] = conn
-		log.Printf("Client %s joined session %s", conn.RemoteAddr(), sessionID)
+		log.Printf("Client joined session. Total active sessions: %d", len(s.sessions))
 		conn.Write([]byte(fmt.Sprintf("Joined session: %s\n", sessionID)))
 
 		// Start relaying data between clients
@@ -134,7 +138,7 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 		go s.relayData(session.Clients[1], session.Clients[0], sessionID)
 
 	default:
-		log.Printf("Unknown command from %s: %s", conn.RemoteAddr(), clientMsg.Command)
+		log.Println("Received unknown command from a client.")
 		conn.Write([]byte("Error: Unknown command\n"))
 		conn.Close()
 		return
@@ -148,8 +152,8 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 		dst.Close()
 		s.mu.Lock()
 		if _, ok := s.sessions[sessionID]; ok {
-			log.Printf("Session %s closed.", sessionID)
 			delete(s.sessions, sessionID)
+			log.Printf("Session closed. Total active sessions: %d", len(s.sessions))
 		}
 		s.mu.Unlock()
 	}()
@@ -163,7 +167,7 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 	// We do this by setting a deadline on the underlying connection before each read.
 	for {
 		if err := src.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
-			log.Printf("Could not set read deadline for session %s: %v", sessionID, err)
+			log.Println("Could not set read deadline for a session.")
 			return
 		}
 
@@ -173,16 +177,17 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Printf("Session %s timed out due to 5 minutes of inactivity.", sessionID)
+				log.Println("A session timed out due to 5 minutes of inactivity.")
 			} else if err != io.EOF {
 				// This could be a "read past limit" error from LimitReader, which is fine.
-				log.Printf("Data relay finished or failed for session %s: %v", sessionID, err)
+				log.Println("Data relay finished for a session.")
 			}
 			// On any error (timeout, EOF, limit reached), we exit.
 			return
 		}
 	}
 }
+
 
 func main() {
 	maxDataRelayed := flag.Int64("max-data-relayed", 50, "Maximum data to relay per session in MB")
