@@ -20,6 +20,7 @@ type (
 	FileChunkMsg         struct{ Chunk []byte }
 	FileDoneMsg          struct{}
 	ProgressMsg          progress.FrameMsg
+	MyPublicKeyMsg       struct{ PublicKey []byte }
 	PeerPublicKeyMsg     struct{ PublicKey []byte }
 	ErrorMsg             struct{ Err error }
 )

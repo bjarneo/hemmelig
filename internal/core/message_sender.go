@@ -20,4 +20,5 @@ type MessageSender interface {
 	SendFileDone()
 	SendProgress(percent float64)
 	SendPeerPublicKey(publicKey []byte)
+	SendMyPublicKey(publicKey []byte)
 }

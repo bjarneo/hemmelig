@@ -69,6 +69,9 @@ func (m *Model) SendProgress(percent float64) {
 func (m *Model) SendPeerPublicKey(publicKey []byte) {
 	m.Program.Send(PeerPublicKeyMsg{PublicKey: publicKey})}
 
+func (m *Model) SendMyPublicKey(publicKey []byte) {
+	m.Program.Send(MyPublicKeyMsg{PublicKey: publicKey})}
+
 
 // Model represents the Bubble Tea UI model.
 type Model struct {
@@ -100,6 +103,7 @@ type Model struct {
 	TotalBytesReceived int64
 	ShowHelp           bool
 	PeerFingerprint    string
+	MyFingerprint      string
 }
 
 // NewModel creates a new UI model.
@@ -275,8 +279,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(m.headerView())
+		infoPaneHeight := lipgloss.Height(m.infoPaneView())
 		footerHeight := lipgloss.Height(m.footerView())
-		verticalMargin := headerHeight + footerHeight
+		verticalMargin := headerHeight + infoPaneHeight + footerHeight
 		m.Viewport.Width = msg.Width
 		m.Viewport.Height = msg.Height - verticalMargin
 		ViewportStyle.Width(msg.Width - 2)
@@ -309,6 +314,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 
+	case MyPublicKeyMsg:
+		hash := sha256.Sum256(msg.PublicKey)
+		m.MyFingerprint = fmt.Sprintf("%x", hash[:8])
 	case PeerPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
 		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8]) // Use first 8 bytes for a shorter fingerprint
@@ -405,8 +413,9 @@ func (m *Model) View() string {
 	}
 
 	return fmt.Sprintf(
-		"%s\n%s\n%s",
+		"%s\n%s\n%s\n%s",
 		m.headerView(),
+		m.infoPaneView(),
 		ViewportStyle.Render(m.Viewport.View()),
 		m.footerView(),
 	)
@@ -415,13 +424,20 @@ func (m *Model) View() string {
 func (m *Model) helpView() string {
 	return lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()).Render(
 		"Available Commands:\n" +
-		"  /send <file_path> - Send a file\n" +
-		"  /quit             - Disconnect and exit\n" +
-		"\nKeybindings:\n" +
-		"  ?                 - Toggle help\n" +
-		"  Ctrl+C/Esc        - Disconnect and exit\n" +
-		"  Enter             - Send message or confirm file transfer\n",
+			"  /send <file_path> - Send a file\n" +
+			"  /quit             - Disconnect and exit\n" +
+			"\nKeybindings:\n" +
+			"  ?                 - Toggle help\n" +
+			"  Ctrl+C/Esc        - Disconnect and exit\n" +
+			"  Enter             - Send message or confirm file transfer\n",
 	)
+}
+
+func (m *Model) infoPaneView() string {
+	myKey := InfoBoxStyle.Render(fmt.Sprintf("Your Fingerprint: %s", m.MyFingerprint))
+	peerKey := InfoBoxStyle.Render(fmt.Sprintf("Peer Fingerprint: %s", m.PeerFingerprint))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, myKey, peerKey)
 }
 
 func (m *Model) headerView() string {

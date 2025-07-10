@@ -22,16 +22,18 @@ func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isI
 
 	// Perform key exchange if key is not provided (first message from peer)
 	var sharedKey []byte
+	var myPublicKey []byte
 	var peerPublicKey []byte
 	var err error
 
 	if key == nil {
-		sharedKey, peerPublicKey, err = crypto.PerformKeyExchange(conn, isInitiator)
+		sharedKey, myPublicKey, peerPublicKey, err = crypto.PerformKeyExchange(conn, isInitiator)
 		if err != nil {
 			sender.SendError(err)
 			return
 		}
 		sender.SendSharedKey(sharedKey)
+		sender.SendMyPublicKey(myPublicKey)
 		sender.SendPeerPublicKey(peerPublicKey)
 	} else {
 		sharedKey = key

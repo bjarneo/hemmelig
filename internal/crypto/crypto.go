@@ -47,11 +47,11 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 }
 
 // PerformKeyExchange performs a Curve25519 key exchange.
-// It returns the shared key and the peer's public key.
-func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, error) {
+// It returns the shared key, the user's public key, and the peer's public key.
+func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, []byte, error) {
 	var privateKey, publicKey [32]byte
 	if _, err := rand.Read(privateKey[:]); err != nil {
-		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 	curve25519.ScalarBaseMult(&publicKey, &privateKey)
 
@@ -59,25 +59,25 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, e
 	if isInitiator {
 		// Initiator sends its public key first, then receives peer's
 		if _, err := conn.Write(publicKey[:]); err != nil {
-			return nil, nil, fmt.Errorf("failed to send public key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to send public key: %w", err)
 		}
 		if _, err := io.ReadFull(conn, theirPublicKey[:]); err != nil {
-			return nil, nil, fmt.Errorf("failed to receive public key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to receive public key: %w", err)
 		}
 	} else {
 		// Responder receives peer's public key first, then sends its own
 		if _, err := io.ReadFull(conn, theirPublicKey[:]); err != nil {
-			return nil, nil, fmt.Errorf("failed to receive public key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to receive public key: %w", err)
 		}
 		if _, err := conn.Write(publicKey[:]); err != nil {
-			return nil, nil, fmt.Errorf("failed to send public key: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to send public key: %w", err)
 		}
 	}
 
 	sharedKey, err := curve25519.X25519(privateKey[:], theirPublicKey[:])
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to compute shared key: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to compute shared key: %w", err)
 	}
 
-	return sharedKey, theirPublicKey[:], nil
+	return sharedKey, publicKey[:], theirPublicKey[:], nil
 }
