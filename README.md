@@ -4,6 +4,8 @@
 
 # Hemmelig: Encrypted Chat with Relay Server
 
+This project is the official TUI version of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app), created by the original author.
+
 Hemmelig is a secure, end-to-end encrypted chat and file transfer application designed for direct peer-to-peer communication. It uses a **Relay Server** to overcome Network Address Translation (NAT) issues, allowing users behind restrictive firewalls to connect securely. The relay server acts as a simple, hardened switchboard, forwarding encrypted data between clients without ever decrypting or inspecting the messages.
 
 ## Features
@@ -11,7 +13,7 @@ Hemmelig is a secure, end-to-end encrypted chat and file transfer application de
 - **End-to-End Encryption:** All messages and files are encrypted using **AES-256-GCM**. The 256-bit symmetric key is derived from a Curve25519 key exchange.
 - **NAT Traversal:** The relay server allows clients to connect even when behind restrictive firewalls.
 - **Secure File Transfer:** Securely send files between connected peers with a configurable size limit (default 10MB).
-- **Responsive UI:** A terminal-based UI that adapts to the window size and provides a user-friendly experience.
+- **Terminal User Interface (TUI):** A responsive and user-friendly terminal UI that adapts to your window size.
 - **Tab Completion:** Basic tab completion for file paths when using the `/send` command.
 - **Trust On First Use (TOFU):** Verify peer identity through public key fingerprints.
 
@@ -120,4 +122,3 @@ sequenceDiagram
 **TOFU** is a security model where the first time you connect to a peer, you save their public key fingerprint. On all future connections, the client will verify that the fingerprint matches.
 
 In Hemmelig, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
-
