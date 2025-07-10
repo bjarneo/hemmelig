@@ -219,48 +219,64 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case tea.KeyRunes:
-			if len(msg.Runes) > 0 && msg.Runes[0] == '?' {
-				m.ShowHelp = !m.ShowHelp
-				return m, nil
+			if len(msg.Runes) > 0 {
+				switch msg.Runes[0] {
+				case '?':
+					m.ShowHelp = !m.ShowHelp
+					return m, nil
+				case 'y', 'Y':
+					if m.PendingOffer.FileName != "" {
+						m.Messages = append(m.Messages, SystemStyle.Render("Accepting file transfer..."))
+						metaBytes, _ := m.PendingOffer.ToJSON()
+						cmd := func() tea.Msg {
+							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileAccept, metaBytes); err != nil {
+								return ErrorMsg{Err: err}
+							}
+							return nil
+						}
+						// Prepare to receive the file
+						file, err := os.Create(filepath.Base(m.PendingOffer.FileName))
+						if err != nil {
+							m.Err = err
+							return m, tea.Quit
+						}
+						m.IsTransferring = true
+						m.IsReceiving = true
+						m.ReceivingFile = file
+						m.TotalBytesReceived = 0
+						m.Progress.SetPercent(0)
+						return m, cmd
+					}
+				case 'n', 'N':
+					if m.PendingOffer.FileName != "" {
+						m.Messages = append(m.Messages, SystemStyle.Render("Rejected file transfer."))
+						cmd := func() tea.Msg {
+							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileReject, nil); err != nil {
+								return ErrorMsg{Err: err}
+							}
+							return nil
+						}
+						m.PendingOffer = protocol.FileMetadata{}
+						return m, cmd
+					}
+				}
+			}
+		case tea.KeyTab:
+			text := m.Textarea.Value()
+			if strings.HasPrefix(text, "/send ") {
+				partialPath := strings.TrimPrefix(text, "/send ")
+				// Basic completion: just an example, would need more robust logic
+				files, _ := filepath.Glob(partialPath + "*")
+				if len(files) == 1 {
+					m.Textarea.SetValue("/send " + files[0])
+				}
 			}
 		case tea.KeyEnter:
 			// If we are currently in the process of confirming a file transfer
 			if m.PendingOffer.FileName != "" {
-				text := strings.ToLower(strings.TrimSpace(m.Textarea.Value()))
-				m.Textarea.Reset()
-
-				if text == "y" || text == "yes" {
-					m.Messages = append(m.Messages, SystemStyle.Render("Accepting file transfer..."))
-					metaBytes, _ := m.PendingOffer.ToJSON()
-					cmd := func() tea.Msg {
-						if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileAccept, metaBytes); err != nil {
-							return ErrorMsg{Err: err}
-						}
-						return nil
-					}
-					// Prepare to receive the file
-					file, err := os.Create(filepath.Base(m.PendingOffer.FileName))
-					if err != nil {
-						m.Err = err
-						return m, tea.Quit
-					}
-					m.IsTransferring = true
-					m.IsReceiving = true
-					m.ReceivingFile = file
-					m.TotalBytesReceived = 0
-					m.Progress.SetPercent(0)
-					return m, cmd
-				} else {
-					m.Messages = append(m.Messages, SystemStyle.Render("Rejected file transfer."))
-					cmd := func() tea.Msg {
-						if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileReject, nil); err != nil {
-							return ErrorMsg{Err: err}
-						}
-						return nil
-					}
-					m.PendingOffer = protocol.FileMetadata{}
-					return m, cmd
-				}
+				// The logic is now handled by KeyRunes, so this block can be removed or left empty.
+				// For clarity, we'll just return the model without any action.
+				return m, nil
 			}
 
 			// Normal message or command
