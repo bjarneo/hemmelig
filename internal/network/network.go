@@ -14,55 +14,29 @@ import (
 )
 
 // ListenAndServe starts a TCP listener and handles incoming connections.
-func ListenAndServe(addr string, sender core.MessageSender) {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		sender.SendError(err)
-		return
-	}
-	defer listener.Close()
 
-	conn, err := listener.Accept()
-	if err != nil {
-		sender.SendError(err)
-		return
-	}
-	sender.SendConnection(conn)
-
-	sharedKey, peerPublicKey, err := crypto.PerformKeyExchange(conn, true)
-	if err != nil {
-		sender.SendError(err)
-		return
-	}
-	sender.SendSharedKey(sharedKey)
-	sender.SendPeerPublicKey(peerPublicKey)
-
-	ListenForMessages(conn, sharedKey, sender)
-}
-
-// ConnectToServer connects to a TCP server.
-func ConnectToServer(addr string, sender core.MessageSender) {
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		sender.SendError(err)
-		return
-	}
-	sender.SendConnection(conn)
-
-	sharedKey, peerPublicKey, err := crypto.PerformKeyExchange(conn, false)
-	if err != nil {
-		sender.SendError(err)
-		return
-	}
-	sender.SendSharedKey(sharedKey)
-	sender.SendPeerPublicKey(peerPublicKey)
-
-	ListenForMessages(conn, sharedKey, sender)
-}
 
 // ListenForMessages reads and processes incoming messages from the connection.
-func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender) {
+func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isInitiator bool) {
 	reader := bufio.NewReader(conn)
+
+	// Perform key exchange if key is not provided (first message from peer)
+	var sharedKey []byte
+	var peerPublicKey []byte
+	var err error
+
+	if key == nil {
+		sharedKey, peerPublicKey, err = crypto.PerformKeyExchange(conn, isInitiator)
+		if err != nil {
+			sender.SendError(err)
+			return
+		}
+		sender.SendSharedKey(sharedKey)
+		sender.SendPeerPublicKey(peerPublicKey)
+	} else {
+		sharedKey = key
+	}
+
 	for {
 		msgType, err := reader.ReadByte()
 		if err != nil {
@@ -84,7 +58,7 @@ func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender) {
 			return
 		}
 
-		decrypted, err := crypto.Decrypt(encryptedMsg, key)
+		decrypted, err := crypto.Decrypt(encryptedMsg, sharedKey)
 		if err != nil {
 			sender.SendError(fmt.Errorf("decryption failed: %w", err))
 			continue

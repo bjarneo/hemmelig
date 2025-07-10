@@ -47,3 +47,5 @@ go.mod
 *.bak
 *.tmp
 *.local.*
+hemmelig
+relay-server

@@ -47,8 +47,8 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 }
 
 // PerformKeyExchange performs a Curve25519 key exchange.
-// It returns the shared key or an error.
-func PerformKeyExchange(conn io.ReadWriter, isServer bool) ([]byte, []byte, error) {
+// It returns the shared key and the peer's public key.
+func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, error) {
 	var privateKey, publicKey [32]byte
 	if _, err := rand.Read(privateKey[:]); err != nil {
 		return nil, nil, fmt.Errorf("failed to generate private key: %w", err)
@@ -56,7 +56,8 @@ func PerformKeyExchange(conn io.ReadWriter, isServer bool) ([]byte, []byte, erro
 	curve25519.ScalarBaseMult(&publicKey, &privateKey)
 
 	var theirPublicKey [32]byte
-	if isServer {
+	if isInitiator {
+		// Initiator sends its public key first, then receives peer's
 		if _, err := conn.Write(publicKey[:]); err != nil {
 			return nil, nil, fmt.Errorf("failed to send public key: %w", err)
 		}
@@ -64,6 +65,7 @@ func PerformKeyExchange(conn io.ReadWriter, isServer bool) ([]byte, []byte, erro
 			return nil, nil, fmt.Errorf("failed to receive public key: %w", err)
 		}
 	} else {
+		// Responder receives peer's public key first, then sends its own
 		if _, err := io.ReadFull(conn, theirPublicKey[:]); err != nil {
 			return nil, nil, fmt.Errorf("failed to receive public key: %w", err)
 		}

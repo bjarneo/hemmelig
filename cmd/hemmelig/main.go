@@ -14,17 +14,46 @@ import (
 )
 
 func main() {
-	listenAddr := flag.String("listen", "", "Address to listen on (e.g., :8080)")
-	connectAddr := flag.String("connect", "", "Address to connect to (e.g., localhost:8080)")
+	relayServerAddr := flag.String("relay-server-addr", "localhost:8080", "Address of the relay server (e.g., localhost:8080)")
+	sessionID := flag.String("session-id", "", "Session ID to join or create")
 	flag.Parse()
 
-	if (*listenAddr == "" && *connectAddr == "") || (*listenAddr != "" && *connectAddr != "") {
-		fmt.Println("Usage: go-chat -listen <address> OR go-chat -connect <address>")
+	if *relayServerAddr == "" {
+		fmt.Println("Usage: hemmelig -relay-server-addr <address> [-session-id <id>]")
 		os.Exit(1)
 	}
 
-	// --- Nickname Prompt ---
 	reader := bufio.NewReader(os.Stdin)
+	var command string
+	var inputSessionID string
+
+	if *sessionID != "" { // If session ID is provided as a flag, assume JOIN
+		command = "JOIN"
+		inputSessionID = *sessionID
+	} else {
+		fmt.Print("Do you want to (C)reate a new session or (J)oin an existing one? (C/J): ")
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(strings.ToUpper(choice))
+
+		if choice == "C" {
+			command = "CREATE"
+			inputSessionID = "" // Relay server will generate
+		} else if choice == "J" {
+			command = "JOIN"
+			fmt.Print("Enter the session ID to join: ")
+			inputSessionID, _ = reader.ReadString('\n')
+			inputSessionID = strings.TrimSpace(inputSessionID)
+			if inputSessionID == "" {
+				fmt.Println("Session ID cannot be empty for joining.")
+				os.Exit(1)
+			}
+		} else {
+			fmt.Println("Invalid choice. Please enter 'C' or 'J'.")
+			os.Exit(1)
+		}
+	}
+
+	// --- Nickname Prompt ---
 	fmt.Print("Enter your nickname (or press Enter for a random Mr. Robot name): ")
 	nickname, _ := reader.ReadString('\n')
 	nickname = strings.TrimSpace(nickname)
@@ -34,12 +63,7 @@ func main() {
 		fmt.Printf("No nickname entered. You are now %s.\n", nickname)
 	}
 
-	var initialModel *ui.Model
-	if *listenAddr != "" {
-		initialModel = ui.NewModel("server", *listenAddr, nickname)
-	} else {
-		initialModel = ui.NewModel("client", *connectAddr, nickname)
-	}
+	initialModel := ui.NewModel(*relayServerAddr, inputSessionID, nickname, command)
 
 	p := tea.NewProgram(initialModel, tea.WithAltScreen())
 

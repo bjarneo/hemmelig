@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"bufio"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -70,13 +72,14 @@ func (m *Model) SendPeerPublicKey(publicKey []byte) {
 
 // Model represents the Bubble Tea UI model.
 type Model struct {
-	Mode      string
-	Address   string
-	Status    string
-	Conn      net.Conn
-	SharedKey []byte
-	Err       error
-	Program   *tea.Program
+	RelayServerAddr string
+	SessionID       string
+	Command         string // Added to store the command (CREATE/JOIN)
+	Status          string
+	Conn            net.Conn
+	SharedKey       []byte
+	Err             error
+	Program         *tea.Program
 
 	Nickname     string
 	PeerNickname string
@@ -100,7 +103,7 @@ type Model struct {
 }
 
 // NewModel creates a new UI model.
-func NewModel(mode, address, nickname string) *Model {
+func NewModel(relayServerAddr, sessionID, nickname, command string) *Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message or /send <file_path>..."
 	ta.Focus()
@@ -113,33 +116,63 @@ func NewModel(mode, address, nickname string) *Model {
 
 	prog := progress.New(progress.WithDefaultGradient())
 
-	var initialStatus string
-	if mode == "server" {
-		initialStatus = fmt.Sprintf("Listening on %s...", address)
-	} else {
-		initialStatus = fmt.Sprintf("Connecting to %s...", address)
-	}
-
 	return &Model{
-		Mode:     mode,
-		Address:  address,
-		Nickname: nickname,
-		Status:   initialStatus,
-		Textarea: ta,
-		Viewport: vp,
-		Progress: prog,
-		Messages: []string{},
+		RelayServerAddr: relayServerAddr,
+		SessionID:       sessionID,
+		Nickname:        nickname,
+		Status:          fmt.Sprintf("Connecting to relay server %s...", relayServerAddr),
+		Textarea:        ta,
+		Viewport:        vp,
+		Progress:        prog,
+		Messages:        []string{},
+		Command:         command,
 	}
 }
 
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		if m.Mode == "server" {
-			network.ListenAndServe(m.Address, m)
-		} else {
-			network.ConnectToServer(m.Address, m)
+		conn, err := net.Dial("tcp", m.RelayServerAddr)
+		if err != nil {
+			return ErrorMsg{Err: fmt.Errorf("failed to connect to relay server: %w", err)}
 		}
+
+		initialMsg := struct {
+			Command   string `json:"command"`
+			SessionID string `json:"sessionID,omitempty"`
+		}{
+			Command:   m.Command,
+			SessionID: m.SessionID,
+		}
+
+		msgBytes, err := json.Marshal(initialMsg)
+		if err != nil {
+			return ErrorMsg{Err: fmt.Errorf("failed to marshal initial message: %w", err)}
+		}
+
+		_, err = conn.Write(append(msgBytes, '\n'))
+		if err != nil {
+			return ErrorMsg{Err: fmt.Errorf("failed to send initial message to relay server: %w", err)}
+		}
+
+		// Read response from relay server
+		reader := bufio.NewReader(conn)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return ErrorMsg{Err: fmt.Errorf("failed to read response from relay server: %w", err)}
+		}
+
+		if strings.HasPrefix(response, "Error:") {
+			return ErrorMsg{Err: fmt.Errorf("relay server error: %s", strings.TrimSpace(response))}
+		}
+
+		if strings.HasPrefix(response, "Session created:") {
+			m.SessionID = strings.TrimSpace(strings.TrimPrefix(response, "Session created:"))
+			m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("New session created with ID: %s. Share this ID with your peer.\n", m.SessionID)))
+		}
+
+		m.Program.Send(ConnectionMsg{Conn: conn})
+		network.ListenForMessages(conn, nil, m, m.Command == "CREATE") // Pass isInitiator flag
 		return nil
 	}
 }
