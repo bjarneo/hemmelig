@@ -2,11 +2,13 @@
   <img src="logo.png" alt="Hemmelig Logo" width="200"/>
 </p>
 
-# Hemmelig: Encrypted Chat with Relay Server
+# Hemmelig: A Secure TUI Chat Application
 
-This project is the official TUI version of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app), created by the original author.
+This project is the official Terminal User Interface (TUI) for Hemmelig, created by the original author of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app).
 
-Hemmelig is a secure, end-to-end encrypted chat and file transfer application designed for direct peer-to-peer communication. It uses a **Relay Server** to overcome Network Address Translation (NAT) issues, allowing users behind restrictive firewalls to connect securely. The relay server acts as a simple, hardened switchboard, forwarding encrypted data between clients without ever decrypting or inspecting the messages.
+While they share a name, the security model of this TUI is fundamentally different and designed for live, interactive chat. Unlike the web version, which is built for stateless, one-time secret sharing, this application creates a persistent, end-to-end encrypted session between two users.
+
+The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH)** key exchange over Curve25519. This ensures that all communication, including messages and file transfers, is protected with perfect forward secrecy for the duration of the session. The relay server facilitates the connection but is never able to decrypt the contents of the conversation.
 
 ## Features
 
