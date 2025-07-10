@@ -115,24 +115,24 @@ type Model struct {
 	Nickname     string
 	PeerNickname string
 
-	Viewport viewport.Model
-	Textarea textarea.Model
-	Progress progress.Model
-	Messages []string
-	IsReady  bool
+	Viewport    viewport.Model
+	Textarea    textarea.Model
+	Progress    progress.Model
+	Messages    []string
+	IsReady     bool
 	IsConnected bool
 
 	// File transfer state
-	IsTransferring     bool
-	IsReceiving        bool
+	IsTransferring       bool
+	IsReceiving          bool
 	IsAwaitingAcceptance bool
-	PendingOffer       protocol.FileMetadata
-	ReceivingFile      *os.File
-	TotalBytesReceived int64
-	ShowHelp           bool
-	PeerFingerprint    string
-	MyFingerprint      string
-	MaxFileSize        int64
+	PendingOffer         protocol.FileMetadata
+	ReceivingFile        *os.File
+	TotalBytesReceived   int64
+	ShowHelp             bool
+	PeerFingerprint      string
+	MyFingerprint        string
+	MaxFileSize          int64
 }
 
 // NewModel creates a new UI model.
@@ -166,7 +166,14 @@ func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize 
 // Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		conn, err := tls.Dial("tcp", m.RelayServerAddr, nil)
+		var conn net.Conn
+		var err error
+		if strings.HasPrefix(m.RelayServerAddr, "localhost:") {
+			conn, err = net.Dial("tcp", m.RelayServerAddr)
+		} else {
+			conn, err = tls.Dial("tcp", m.RelayServerAddr, nil)
+		}
+
 		if err != nil {
 			return ErrorMsg{Err: fmt.Errorf("failed to connect to relay server: %w", err)}
 		}
@@ -307,10 +314,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Offering to send file: %s", filePath)))
 					m.IsAwaitingAcceptance = true
 					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
-								cmd := func() tea.Msg {
-							filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, &programMessageSender{program: m.Program}, m.MaxFileSize)
-							return nil
-						}
+					cmd := func() tea.Msg {
+						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, &programMessageSender{program: m.Program}, m.MaxFileSize)
+						return nil
+					}
 					return m, cmd
 				}
 
@@ -367,7 +374,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return nil
 		}
 		return m, cmd
-
 
 	case MyPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
