@@ -315,15 +315,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		infoPaneHeight := lipgloss.Height(m.infoPaneView())
 		footerHeight := lipgloss.Height(m.footerView())
 		verticalMargin := headerHeight + infoPaneHeight + footerHeight
-		m.Viewport.Width = msg.Width
-		m.Viewport.Height = msg.Height - verticalMargin
-		ViewportStyle.Width(msg.Width - 2)
-		m.Textarea.SetWidth(msg.Width)
-		TextareaStyle.Width(msg.Width - 2)
-		m.Progress.Width = msg.Width - 4
-		if m.IsReady {
-			m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-		}
+m.Viewport.Width = msg.Width
+m.Viewport.Height = msg.Height - verticalMargin
+ViewportStyle = ViewportStyle.Width(msg.Width - 2)
+m.Textarea.SetWidth(msg.Width)
+TextareaStyle = TextareaStyle.Width(msg.Width - 2)
+m.Progress.Width = msg.Width - 4
+if m.IsReady {
+	m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
+}
 
 	case progress.FrameMsg:
 		progressModel, cmd := m.Progress.Update(msg)
