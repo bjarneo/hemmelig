@@ -5,7 +5,7 @@
 # Hemmelig: A Secure TUI Chat Application
 
 > ⚠️ Security Warning  
-> The private message and channel features are experimental and have not been externally audited for security. They should be considered a work in progress and may contain vulnerabilities.
+> The private message and file features are experimental and have not been externally audited for security. They should be considered a work in progress and may contain vulnerabilities.
 
 This project is the official Terminal User Interface (TUI) for Hemmelig, created by the original author of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app).
 
