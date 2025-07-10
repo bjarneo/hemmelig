@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -22,14 +23,16 @@ type Session struct {
 
 // RelayServer holds the state of the relay server.
 type RelayServer struct {
-	sessions map[string]*Session
-	mu       sync.Mutex
+	sessions       map[string]*Session
+	mu             sync.Mutex
+	maxDataRelayed int64
 }
 
 // NewRelayServer creates a new RelayServer instance.
-func NewRelayServer() *RelayServer {
+func NewRelayServer(maxDataRelayed int64) *RelayServer {
 	return &RelayServer{
-		sessions: make(map[string]*Session),
+		sessions:       make(map[string]*Session),
+		maxDataRelayed: maxDataRelayed,
 	}
 }
 
@@ -144,8 +147,6 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 		src.Close()
 		dst.Close()
 		s.mu.Lock()
-		// Check if session exists before deleting to avoid race conditions
-		// where a session is closed by two relayData routines simultaneously.
 		if _, ok := s.sessions[sessionID]; ok {
 			log.Printf("Session %s closed.", sessionID)
 			delete(s.sessions, sessionID)
@@ -153,37 +154,40 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 		s.mu.Unlock()
 	}()
 
-	buf := make([]byte, 4096) // 4KB buffer is efficient
+	// Use a limited reader to prevent bandwidth abuse.
+	// We wrap the source connection with a reader that will return EOF
+	// after maxDataRelayed bytes have been read.
+	limitedSrc := io.LimitReader(src, s.maxDataRelayed)
+
+	// Continuously copy data, but also manage an inactivity timer.
+	// We do this by setting a deadline on the underlying connection before each read.
 	for {
-		// Set a 5-minute deadline for the next read.
 		if err := src.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
 			log.Printf("Could not set read deadline for session %s: %v", sessionID, err)
 			return
 		}
 
-		nr, err := src.Read(buf)
+		// Copy a chunk of data. io.Copy will use our limitedSrc.
+		// We copy in chunks to allow the deadline to be checked periodically.
+		_, err := io.CopyN(dst, limitedSrc, 4096)
+
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Printf("Session %s timed out due to 5 minutes of inactivity.", sessionID)
 			} else if err != io.EOF {
-				// Don't log EOF errors, as they are expected when a client disconnects.
-				log.Printf("Error reading from session %s: %v", sessionID, err)
+				// This could be a "read past limit" error from LimitReader, which is fine.
+				log.Printf("Data relay finished or failed for session %s: %v", sessionID, err)
 			}
-			// On any error (timeout, EOF, etc.), we exit and let the defer handle cleanup.
+			// On any error (timeout, EOF, limit reached), we exit.
 			return
-		}
-
-		if nr > 0 {
-			_, err := dst.Write(buf[0:nr])
-			if err != nil {
-				log.Printf("Error writing to session %s: %v", sessionID, err)
-				return
-			}
 		}
 	}
 }
 
 func main() {
-	server := NewRelayServer()
-	server.Start(":8080") // Default port for the relay server
+	maxDataRelayed := flag.Int64("max-data-relayed", 50, "Maximum data to relay per session in MB")
+	flag.Parse()
+
+	server := NewRelayServer(*maxDataRelayed * 1024 * 1024) // Convert MB to bytes
+	server.Start(":8080")
 }
