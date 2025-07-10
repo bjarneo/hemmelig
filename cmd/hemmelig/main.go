@@ -15,7 +15,7 @@ import (
 
 func main() {
 	const maxFileSize = 10 // MB
-	relayServerAddr := flag.String("relay-server-addr", "localhost:8080", "Address of the relay server (e.g., localhost:8080)")
+	relayServerAddr := flag.String("relay-server-addr", "relay.hemmelig.app:443", "Address of the relay server (e.g., localhost:8080)")
 	sessionID := flag.String("session-id", "", "Session ID to join or create")
 	flag.Parse()
 
@@ -73,4 +73,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
