@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net"
+	"crypto/rand"
+	"encoding/hex"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +18,16 @@ import (
 )
 
 var totalSessions int64
+
+// generateShortID generates a short random hex string.
+func generateShortID(length int) string {
+	bytes := make([]byte, length/2)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a timestamp-based string if crypto/rand fails, though unlikely.
+		return fmt.Sprintf("%x", time.Now().UnixNano())[:length]
+	}
+	return hex.EncodeToString(bytes)
+}
 
 // Session represents a chat session with two connected clients.
 type Session struct {
@@ -101,35 +113,57 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessionID := clientMsg.SessionID
-	session, exists := s.sessions[sessionID]
+	requestedSessionID := clientMsg.SessionID
+	finalSessionID := requestedSessionID
+	var session *Session
+	var exists bool
 
 	switch clientMsg.Command {
 	case "CREATE":
-		if exists {
-			log.Println("Attempted to create a session that already exists.")
-			conn.Write([]byte("Error: Session already exists\n"))
-			conn.Close()
-			return
+		if requestedSessionID != "" {
+			// User provided a session ID
+			session, exists = s.sessions[requestedSessionID]
+			if exists {
+				// Collision: prepend a short unique ID
+				log.Printf("Session ID '%s' already exists. Generating a new one.", requestedSessionID)
+				prefix := generateShortID(6) // Generate a 6-character hex prefix (3 bytes)
+				finalSessionID = prefix + "-" + requestedSessionID
+				// Check again for the highly unlikely case of collision with the new ID
+				_, exists = s.sessions[finalSessionID]
+				for exists { // Keep generating until unique
+					prefix = generateShortID(6)
+					finalSessionID = prefix + "-" + requestedSessionID
+					_, exists = s.sessions[finalSessionID]
+				}
+				log.Printf("Using modified session ID: '%s'", finalSessionID)
+			} else {
+				// User-provided ID is unique
+				finalSessionID = requestedSessionID
+			}
+		} else {
+			// User did not provide a session ID, generate a new UUID
+			finalSessionID = uuid.New().String()
 		}
-		sessionID = uuid.New().String()
-		session = &Session{ID: sessionID}
+
+		session = &Session{ID: finalSessionID}
 		session.Clients[0] = conn
-		s.sessions[sessionID] = session
+		s.sessions[finalSessionID] = session
 		atomic.AddInt64(&totalSessions, 1)
-		log.Printf("New session created. Total active sessions: %d", len(s.sessions))
-		conn.Write([]byte(fmt.Sprintf("Session created: %s\n", sessionID)))
+		log.Printf("New session created with ID '%s'. Total active sessions: %d", finalSessionID, len(s.sessions))
+		conn.Write([]byte(fmt.Sprintf("Session created: %s\n", finalSessionID)))
 
 	case "JOIN":
+		session, exists = s.sessions[requestedSessionID]
 		if !exists || session.Clients[1] != nil {
-			log.Println("Attempted to join a session that does not exist or is full.")
+			log.Printf("Attempted to join session '%s' which does not exist or is full.", requestedSessionID)
 			conn.Write([]byte("Error: Session not found or full\n"))
 			conn.Close()
 			return
 		}
 		session.Clients[1] = conn
-		log.Printf("Client joined session. Total active sessions: %d", len(s.sessions))
-		conn.Write([]byte(fmt.Sprintf("Joined session: %s\n", sessionID)))
+		finalSessionID = requestedSessionID // For logging and consistency
+		log.Printf("Client joined session '%s'. Total active sessions: %d", finalSessionID, len(s.sessions))
+		conn.Write([]byte(fmt.Sprintf("Joined session: %s\n", finalSessionID)))
 
 		// Start relaying data between clients
 		go s.relayData(session.Clients[0], session.Clients[1], sessionID)
