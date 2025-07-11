@@ -38,6 +38,7 @@ detect_os() {
 detect_arch() {
   case "$(uname -m)" in
   x86_64 | amd64) ARCH='amd64' ;;
+  aarch64 | arm64) ARCH='arm64' ;;
   i386 | i686) ARCH='386' ;;
   *) echo_error "Unsupported architecture: $(uname -m)." ;;
   esac

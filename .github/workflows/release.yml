@@ -32,6 +32,9 @@ jobs:
       - name: Build for macOS (amd64)
         run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-darwin-amd64 ./cmd/hemmelig
 
+      - name: Build for macOS (arm64)
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o hemmelig-darwin-arm64 ./cmd/hemmelig
+
       - name: Build for Windows (amd64)
         run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-windows-amd64.exe ./cmd/hemmelig
 
@@ -40,6 +43,7 @@ jobs:
           sha256sum hemmelig-linux-amd64 > hemmelig-linux-amd64.sha256
           sha256sum hemmelig-linux-386 > hemmelig-linux-386.sha256
           sha256sum hemmelig-darwin-amd64 > hemmelig-darwin-amd64.sha256
+          sha256sum hemmelig-darwin-arm64 > hemmelig-darwin-arm64.sha256
           sha256sum hemmelig-windows-amd64.exe > hemmelig-windows-amd64.sha256
           cat *.sha256 > checksums.txt
 
@@ -50,5 +54,6 @@ jobs:
             hemmelig-linux-amd64
             hemmelig-linux-386
             hemmelig-darwin-amd64
+            hemmelig-darwin-arm64
             hemmelig-windows-amd64.exe
             checksums.txt
