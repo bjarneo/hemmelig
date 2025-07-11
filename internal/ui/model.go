@@ -338,16 +338,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(m.headerView())
 		infoPaneHeight := lipgloss.Height(m.infoPaneView())
-		footerHeight := lipgloss.Height(m.footerView())
+		footerHeight := lipgloss.Height(m.footerView()) // This depends on TextareaStyle's height, which is fixed.
 		verticalMargin := headerHeight + infoPaneHeight + footerHeight
-		m.Viewport.Width = msg.Width
-		m.Viewport.Height = msg.Height - verticalMargin
-		ViewportStyle = ViewportStyle.Width(msg.Width - 2)
-		m.Textarea.SetWidth(msg.Width)
-		TextareaStyle = TextareaStyle.Width(msg.Width - 2)
-		m.Progress.Width = msg.Width - 4
+
+		// Target total width for the styled components
+		totalWidth := msg.Width
+
+		// Content width for components, assuming a 1-cell border on each side from the style
+		// lipgloss.RoundedBorder takes 1 cell on left and 1 on right.
+		contentWidth := totalWidth - 2
+		if contentWidth < 0 {
+			contentWidth = 0 // Prevent negative widths
+		}
+
+		m.Viewport.Width = contentWidth
+		m.Viewport.Height = msg.Height - verticalMargin // Height calculation seems okay
+
+		// Update global styles' widths. This is not ideal practice to modify global vars,
+		// but it matches the existing pattern in this codebase.
+		// These styles will be used in View() to render the components.
+		ViewportStyle = ViewportStyle.Width(totalWidth)
+		TextareaStyle = TextareaStyle.Width(totalWidth)
+
+		m.Textarea.SetWidth(contentWidth) // Textarea's content width
+
+		// Progress bar is rendered inside TextareaStyle in footerView()
+		// So its content width should also be contentWidth to align with the textarea.
+		m.Progress.Width = contentWidth
+
 		if m.IsReady {
+			// Important: Re-set content after changing viewport width to trigger re-layout and wrapping.
 			m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
+			m.Viewport.GotoBottom() // Ensure it stays at the bottom after resize
 		}
 
 	case progress.FrameMsg:
