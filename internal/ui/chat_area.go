@@ -2,8 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"log"
-	"os"
+	// "log" // Removed unused import
+	// "os"  // Removed unused import
+	"path/filepath" // Added for filepath.Glob
 	"strings"
 	"time"
 
@@ -105,6 +106,39 @@ func (m ChatAreaModel) Update(msg tea.Msg) (ChatAreaModel, tea.Cmd) {
 				// Return a command to the main model indicating input was submitted
 				return m, func() tea.Msg { return SubmitInputMsg{Content: inputValue} }
 			}
+		case tea.KeyTab:
+			currentText := m.textarea.Value()
+			if strings.HasPrefix(currentText, "/send ") {
+				partialPath := strings.TrimPrefix(currentText, "/send ")
+				// Add a '*' for globbing if not already present or to expand directory
+				globPath := partialPath
+				if !strings.HasSuffix(globPath, "*") {
+					globPath += "*"
+				}
+
+				matches, err := filepath.Glob(globPath)
+				if err == nil && len(matches) > 0 {
+					if len(matches) == 1 {
+						// Single match, complete it
+						m.textarea.SetValue("/send " + matches[0])
+						m.textarea.CursorEnd() // Move cursor to end
+					} else {
+						// Multiple matches, find common prefix
+						prefix := commonPrefix(matches)
+						if prefix != "" && len(prefix) > len(partialPath) {
+							m.textarea.SetValue("/send " + prefix)
+							m.textarea.CursorEnd()
+						} else if len(partialPath) > 0 && !strings.HasSuffix(partialPath, string(filepath.Separator)) {
+							// If trying to complete a file and multiple exist, try adding separator if it's a dir
+							// This is a simple heuristic: if the partial path could be a directory.
+							// More robust would be to check if partialPath is a dir.
+							// For now, let's just complete to common prefix or single match.
+						}
+					}
+				}
+				// Prevent Tab from being processed further (e.g., by terminal)
+				return m, nil // Absorb the Tab key event
+			}
 		}
 	case FocusTextareaMsg:
 		cmds = append(cmds, m.textarea.Focus())
@@ -112,6 +146,26 @@ func (m ChatAreaModel) Update(msg tea.Msg) (ChatAreaModel, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// commonPrefix finds the longest common prefix among a list of strings.
+func commonPrefix(strs []string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	if len(strs) == 1 {
+		return strs[0]
+	}
+	prefix := strs[0]
+	for _, s := range strs[1:] {
+		for !strings.HasPrefix(s, prefix) {
+			if len(prefix) == 0 {
+				return ""
+			}
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	return prefix
 }
 
 // SetDimensions updates the internal width and height, and resizes components.
