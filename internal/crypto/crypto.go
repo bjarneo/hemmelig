@@ -1,13 +1,16 @@
 package crypto
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/dothash/hemmelig-cli/internal/protocol" // Added for protocol.TypePublicKeyExchange
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -46,7 +49,41 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 	return gcm.Open(nil, nonce, actualCiphertext, nil)
 }
 
-// PerformKeyExchange performs a Curve25519 key exchange.
+// Helper for PerformKeyExchange to read one TLV message (unencrypted payload)
+func readTLVFromConn(conn io.Reader) (byte, []byte, error) {
+	// Using bufio.NewReader here. If conn is already a buffered reader,
+	// this might be redundant but generally safe.
+	// If conn is a raw net.Conn, this is beneficial.
+	reader := bufio.NewReader(conn)
+
+	msgType, err := reader.ReadByte()
+	if err != nil {
+		return 0, nil, fmt.Errorf("readTLV: failed to read msgType: %w", err)
+	}
+
+	var length uint32
+	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
+		return 0, nil, fmt.Errorf("readTLV: failed to read length: %w", err)
+	}
+
+	// Safety limit for public key payload
+	if length > 1024 {
+		return 0, nil, fmt.Errorf("readTLV: message length %d too large for key exchange payload", length)
+	}
+	if length == 0 { // Public key should not be zero length
+		return 0, nil, errors.New("readTLV: received zero length public key payload")
+	}
+
+
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(reader, payload); err != nil {
+		return 0, nil, fmt.Errorf("readTLV: failed to read payload: %w", err)
+	}
+	return msgType, payload, nil
+}
+
+
+// PerformKeyExchange performs a Curve25519 key exchange using TLV-formatted messages for public keys.
 // It returns the shared key, the user's public key, and the peer's public key.
 func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, []byte, error) {
 	var privateKey, publicKey [32]byte
@@ -55,29 +92,63 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, [
 	}
 	curve25519.ScalarBaseMult(&publicKey, &privateKey)
 
-	var theirPublicKey [32]byte
+	var theirPublicKeyBytes [32]byte
+
 	if isInitiator {
-		// Initiator sends its public key first, then receives peer's
-		if _, err := conn.Write(publicKey[:]); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to send public key: %w", err)
+		// Initiator sends its public key first (TLV, unencrypted)
+		payloadToSend := publicKey[:]
+		msgHeader := make([]byte, 1+4) // 1 byte for type, 4 bytes for length
+		msgHeader[0] = protocol.TypePublicKeyExchange
+		binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
+		fullMsg := append(msgHeader, payloadToSend...)
+
+		if _, err := conn.Write(fullMsg); err != nil {
+			return nil, nil, nil, fmt.Errorf("initiator failed to send public key: %w", err)
 		}
-		if _, err := io.ReadFull(conn, theirPublicKey[:]); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to receive public key: %w", err)
+
+		// Then, initiator receives peer's key (TLV, unencrypted)
+		recvMsgType, recvPayload, err := readTLVFromConn(conn)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("initiator failed to read peer's public key: %w", err)
 		}
-	} else {
-		// Responder receives peer's public key first, then sends its own
-		if _, err := io.ReadFull(conn, theirPublicKey[:]); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to receive public key: %w", err)
+		if recvMsgType != protocol.TypePublicKeyExchange {
+			return nil, nil, nil, fmt.Errorf("initiator expected TypePublicKeyExchange, got %d", recvMsgType)
 		}
-		if _, err := conn.Write(publicKey[:]); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to send public key: %w", err)
+		if len(recvPayload) != 32 {
+			return nil, nil, nil, fmt.Errorf("initiator received peer public key of wrong size: %d", len(recvPayload))
+		}
+		copy(theirPublicKeyBytes[:], recvPayload)
+
+	} else { // Responder
+		// Responder receives peer's key first (TLV, unencrypted)
+		recvMsgType, recvPayload, err := readTLVFromConn(conn)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("responder failed to read peer's public key: %w", err)
+		}
+		if recvMsgType != protocol.TypePublicKeyExchange {
+			return nil, nil, nil, fmt.Errorf("responder expected TypePublicKeyExchange, got %d", recvMsgType)
+		}
+		if len(recvPayload) != 32 {
+			return nil, nil, nil, fmt.Errorf("responder received peer public key of wrong size: %d", len(recvPayload))
+		}
+		copy(theirPublicKeyBytes[:], recvPayload)
+
+		// Then, responder sends its public key (TLV, unencrypted)
+		payloadToSend := publicKey[:]
+		msgHeader := make([]byte, 1+4) // 1 byte for type, 4 bytes for length
+		msgHeader[0] = protocol.TypePublicKeyExchange
+		binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
+		fullMsg := append(msgHeader, payloadToSend...)
+
+		if _, err := conn.Write(fullMsg); err != nil {
+			return nil, nil, nil, fmt.Errorf("responder failed to send public key: %w", err)
 		}
 	}
 
-	sharedKey, err := curve25519.X25519(privateKey[:], theirPublicKey[:])
+	sharedKeyVal, err := curve25519.X25519(privateKey[:], theirPublicKeyBytes[:])
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to compute shared key: %w", err)
 	}
 
-	return sharedKey, publicKey[:], theirPublicKey[:], nil
+	return sharedKeyVal, publicKey[:], theirPublicKeyBytes[:], nil
 }

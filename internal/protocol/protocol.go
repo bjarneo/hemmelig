@@ -12,6 +12,7 @@ const (
 	TypeFileReject byte = 0x04
 	TypeFileChunk  byte = 0x05
 	TypeFileDone   byte = 0x06
+	TypePublicKeyExchange byte = 0x0A // New type for public key exchange
 )
 
 // FileMetadata is sent before the file content itself.
