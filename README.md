@@ -13,7 +13,8 @@ While they share a name, the security model of this TUI is fundamentally differe
 
 The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH)** key exchange over Curve25519. This ensures that all communication, including messages and file transfers, is protected with perfect forward secrecy for the duration of the session. The relay server facilitates the connection but is never able to decrypt the contents of the conversation.
 
-<img width="866" height="1446" alt="Screenshot from 2025-07-10 21-41-23" src="https://github.com/user-attachments/assets/93b1c924-4fa5-48fd-a80d-006aec0d957d" />
+<img width="762" height="501" alt="Screenshot from 2025-07-11 20-59-15" src="https://github.com/user-attachments/assets/dd5a13ed-74ab-485d-9b1a-b19baa302944" />
+
 
 ## Features
 
