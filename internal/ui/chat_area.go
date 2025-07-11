@@ -54,13 +54,12 @@ func NewChatAreaModel(initialWidth, initialHeight int, userNickname string) Chat
 	ta.SetHeight(1)          // Starts as single line, expands automatically
 
 	// Define styles for the textarea prompt and text
-	// The prompt text will be dynamic based on userNickname
-	focusedPromptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredPromptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Or a different color for blurred
+	promptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	ta.FocusedStyle.Prompt = focusedPromptStyle.Render(userNickname + ": ")
-	ta.BlurredStyle.Prompt = blurredPromptStyle.Render(userNickname + ": ")
+	ta.FocusedStyle.Prompt = promptStyle // Assign the style object
+	ta.BlurredStyle.Prompt = promptStyle // Assign the style object (can be different if desired)
 	ta.ShowLineNumbers = false
+	// ta.Prompt will be set dynamically in View()
 
 	vp := viewport.New(initialWidth, initialHeight-3) // Initial guess for viewport height
 	// vp.Style, inputStyle, viewportStyle will be defined in View() based on current width/height
@@ -189,15 +188,10 @@ func (m *ChatAreaModel) View(messagesToDisplay []Message) string {
 		PaddingRight(1)
 	m.inputStyle = currentInputStyle
 
-	// Update textarea prompt dynamically if nickname can change or for consistent styling
-	// This assumes userNickname in ChatAreaModel is kept up-to-date by main model if it can change.
-	// Or, it's set once at init.
-	promptText := m.userNickname + ": "
-	if m.textarea.Focused() {
-		m.textarea.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(promptText)
-	} else {
-		m.textarea.BlurredStyle.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(promptText) // Or different style for blurred
-	}
+	// Update textarea prompt dynamically
+	m.textarea.Prompt = m.userNickname + ": "
+	// The styles for the prompt (FocusedStyle.Prompt, BlurredStyle.Prompt) were set in NewChatAreaModel.
+	// The textarea component will use those styles when rendering its prompt.
 	textareaViewString := m.textarea.View()
 
 	// Combine viewport and input box

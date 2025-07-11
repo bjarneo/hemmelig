@@ -232,7 +232,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case SubmitInputMsg: // Use local SubmitInputMsg
+	case SubmitInputMsg: // Corrected: Was chatview.SubmitInputMsg
 		text := strings.TrimSpace(msg.Content)
 		if text == "" {
 			return m, tea.Batch(cmds...)
@@ -382,7 +382,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		m.IsReady = true
 		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /help for a list of commands or /send <file_path> to send a file.", m.Nickname, m.PeerNickname)}) // Use local Message
-		cmds = append(cmds, func() tea.Msg { return FocusTextareaMsg{} }) // Use local FocusTextareaMsg
+		cmds = append(cmds, func() tea.Msg { return FocusTextareaMsg{} }) // Corrected: Was chatview.FocusTextareaMsg
 
 	case ReceivedTextMsg:
 		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.PeerNickname, Content: msg.Text}) // Use local Message
