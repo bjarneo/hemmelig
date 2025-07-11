@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"errors" // Added missing import
 	"fmt"
 	"io"
 	"net"
@@ -102,15 +103,31 @@ func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isI
 }
 
 // SendData encrypts and sends data over the connection.
+// For TypePublicKeyExchange, data is sent unencrypted.
 func SendData(conn net.Conn, sharedKey []byte, msgType byte, data []byte) error {
-	encrypted, err := crypto.Encrypt(data, sharedKey)
-	if err != nil {
-		return fmt.Errorf("encryption failed: %w", err)
+	var payloadToSend []byte
+	var err error
+
+	if msgType == protocol.TypePublicKeyExchange {
+		payloadToSend = data // Send raw public key for exchange
+	} else {
+		if sharedKey == nil {
+			// This check is important. If sharedKey is nil for other types, it's an error.
+			return errors.New("shared key is nil, cannot encrypt non-PublicKeyExchange message")
+		}
+		payloadToSend, err = crypto.Encrypt(data, sharedKey)
+		if err != nil {
+			return fmt.Errorf("encryption failed: %w", err)
+		}
 	}
 
-	msg := append([]byte{msgType}, binary.BigEndian.AppendUint32(nil, uint32(len(encrypted)))...)
-	msg = append(msg, encrypted...)
+	// Prepend msgType and length
+	msgHeader := make([]byte, 1+4) // 1 byte for type, 4 bytes for length
+	msgHeader[0] = msgType
+	binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
 
-	_, err = conn.Write(msg)
+	fullMsg := append(msgHeader, payloadToSend...)
+
+	_, err = conn.Write(fullMsg)
 	return err
 }

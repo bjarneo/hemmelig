@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -103,7 +101,7 @@ type InfoMsg struct {
 type Model struct {
 	RelayServerAddr string
 	SessionID       string
-	Command         string // Added to store the command (CREATE/JOIN)
+	Command         string
 	Status          string
 	Conn            net.Conn
 	SharedKey       []byte
@@ -113,14 +111,12 @@ type Model struct {
 	Nickname     string
 	PeerNickname string
 
-	Viewport    viewport.Model
-	Textarea    textarea.Model
+	chatArea    ChatAreaModel
 	Progress    progress.Model
-	Messages    []string
+	Messages    []Message
 	IsReady     bool
 	IsConnected bool
 
-	// File transfer state
 	IsTransferring       bool
 	IsReceiving          bool
 	IsAwaitingAcceptance bool
@@ -133,36 +129,27 @@ type Model struct {
 	MaxFileSize          int64
 }
 
-// NewModel creates a new UI model.
 func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize int64) *Model {
-	ta := textarea.New()
-	ta.Placeholder = "Type a message or type /help for a list of commands..."
-	ta.Focus()
-	ta.CharLimit = 0
-	ta.SetHeight(1) // Changed from 3 to 1 for a single-line input area within the border
-	ta.ShowLineNumbers = false
-	ta.Prompt = "> " // Added prompt for IRC look
+	initialWidth := 80
+	initialChatAreaHeight := 20
 
-	vp := viewport.New(80, 10)
-	vp.SetContent("Waiting for connection...")
-
+	ca := NewChatAreaModel(initialWidth, initialChatAreaHeight, nickname)
 	prog := progress.New(progress.WithDefaultGradient())
 
-	return &Model{
+	m := &Model{
 		RelayServerAddr: relayServerAddr,
 		SessionID:       sessionID,
 		Nickname:        nickname,
 		Status:          fmt.Sprintf("Connecting to relay server %s...", relayServerAddr),
-		Textarea:        ta,
-		Viewport:        vp,
+		chatArea:        ca,
 		Progress:        prog,
-		Messages:        []string{},
+		Messages:        []Message{{Timestamp: time.Now(), Sender: "System", Content: "Waiting for connection..."}},
 		Command:         command,
-		MaxFileSize:     maxFileSize * 1024 * 1024, // Convert MB to bytes
+		MaxFileSize:     maxFileSize * 1024 * 1024,
 	}
+	return m
 }
 
-// Init initializes the model.
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		var conn net.Conn
@@ -177,7 +164,7 @@ func (m *Model) Init() tea.Cmd {
 			return ErrorMsg{Err: fmt.Errorf("failed to connect to relay server: %w", err)}
 		}
 
-		initialMsg := struct {
+		initialMsgStruct := struct {
 			Command   string `json:"command"`
 			SessionID string `json:"sessionID,omitempty"`
 		}{
@@ -185,7 +172,7 @@ func (m *Model) Init() tea.Cmd {
 			SessionID: m.SessionID,
 		}
 
-		msgBytes, err := json.Marshal(initialMsg)
+		msgBytes, err := json.Marshal(initialMsgStruct)
 		if err != nil {
 			return ErrorMsg{Err: fmt.Errorf("failed to marshal initial message: %w", err)}
 		}
@@ -195,7 +182,6 @@ func (m *Model) Init() tea.Cmd {
 			return ErrorMsg{Err: fmt.Errorf("failed to send initial message to relay server: %w", err)}
 		}
 
-		// Read response from relay server
 		reader := bufio.NewReader(conn)
 		response, err := reader.ReadString('\n')
 		if err != nil {
@@ -214,40 +200,87 @@ func (m *Model) Init() tea.Cmd {
 	}
 }
 
-// Update handles messages and updates the model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		taCmd tea.Cmd
-		vpCmd tea.Cmd
-		pgCmd tea.Cmd
+		chatAreaCmd tea.Cmd
+		cmds        []tea.Cmd
 	)
 
-	m.Textarea, taCmd = m.Textarea.Update(msg)
-	m.Viewport, vpCmd = m.Viewport.Update(msg)
+	if m.IsTransferring {
+		var currentPgCmd tea.Cmd
+		newProgress, currentPgCmd := m.Progress.Update(msg)
+		if newProgressModel, ok := newProgress.(progress.Model); ok {
+			m.Progress = newProgressModel
+		}
+		if currentPgCmd != nil {
+			cmds = append(cmds, currentPgCmd)
+		}
+	}
+
+	m.chatArea, chatAreaCmd = m.chatArea.Update(msg)
+	if chatAreaCmd != nil {
+		cmds = append(cmds, chatAreaCmd)
+	}
 
 	switch msg := msg.(type) {
+	case SubmitInputMsg:
+		text := strings.TrimSpace(msg.Content)
+		if text == "" {
+			return m, tea.Batch(cmds...)
+		}
+
+		if strings.HasPrefix(text, "/send ") {
+			filePath := strings.TrimPrefix(text, "/send ")
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Offering to send file: %s", filePath)})
+			m.IsAwaitingAcceptance = true
+			m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
+			cmd := func() tea.Msg {
+				filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, &programMessageSender{program: m.Program}, m.MaxFileSize)
+				return nil
+			}
+			cmds = append(cmds, cmd)
+		} else if text == "/help" {
+			m.ShowHelp = !m.ShowHelp
+		} else if text == "/fingerprint" {
+			now := time.Now()
+			if m.MyFingerprint != "" {
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
+			} else {
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Your Key Fingerprint is not yet available."})
+			}
+			if m.PeerFingerprint != "" {
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+			} else {
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Peer is not connected or their fingerprint is not yet available."})
+			}
+		} else {
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.Nickname, Content: text})
+			cmd := func() tea.Msg {
+				if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeText, []byte(text)); err != nil {
+					return ErrorMsg{Err: err}
+				}
+				return nil
+			}
+			cmds = append(cmds, cmd)
+		}
+
 	case tea.KeyMsg:
-		// If the help view is open, only allow Esc to close it.
 		if m.ShowHelp {
 			if msg.Type == tea.KeyEsc {
 				m.ShowHelp = false
-				return m, nil
 			}
-			return m, nil
-		}
-
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			if m.Conn != nil {
-				m.Conn.Close()
-			}
-			return m, tea.Quit
-		case tea.KeyRunes:
-			if len(msg.Runes) > 0 {
-				switch msg.Runes[0] {
-				case 'y', 'Y':
-					if m.PendingOffer.FileName != "" {
-						m.Messages = append(m.Messages, SystemStyle.Render("Accepting file transfer..."))
+		} else {
+			switch msg.Type {
+			case tea.KeyCtrlC, tea.KeyEsc:
+				if m.Conn != nil {
+					m.Conn.Close()
+				}
+				return m, tea.Quit
+			case tea.KeyRunes:
+				if m.PendingOffer.FileName != "" && len(msg.Runes) > 0 {
+					switch msg.Runes[0] {
+					case 'y', 'Y':
+						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Accepting file transfer..."})
 						metaBytes, _ := m.PendingOffer.ToJSON()
 						cmd := func() tea.Msg {
 							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileAccept, metaBytes); err != nil {
@@ -255,7 +288,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 							return nil
 						}
-						// Prepare to receive the file
+						cmds = append(cmds, cmd)
 						file, err := os.Create(filepath.Base(m.PendingOffer.FileName))
 						if err != nil {
 							m.Err = err
@@ -266,132 +299,42 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.ReceivingFile = file
 						m.TotalBytesReceived = 0
 						m.Progress.SetPercent(0)
-						return m, cmd
-					}
-				case 'n', 'N':
-					if m.PendingOffer.FileName != "" {
-						m.Messages = append(m.Messages, SystemStyle.Render("Rejected file transfer."))
+					case 'n', 'N':
+						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Rejected file transfer."})
 						cmd := func() tea.Msg {
 							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileReject, nil); err != nil {
 								return ErrorMsg{Err: err}
 							}
 							return nil
 						}
+						cmds = append(cmds, cmd)
 						m.PendingOffer = protocol.FileMetadata{}
-						return m, cmd
 					}
 				}
-			}
-		case tea.KeyTab:
-			text := m.Textarea.Value()
-			if strings.HasPrefix(text, "/send ") {
-				partialPath := strings.TrimPrefix(text, "/send ")
-				// Basic completion: just an example, would need more robust logic
-				files, _ := filepath.Glob(partialPath + "*")
-				if len(files) == 1 {
-					m.Textarea.SetValue("/send " + files[0])
-				}
-			}
-		case tea.KeyEnter:
-			// If we are currently in the process of confirming a file transfer
-			if m.PendingOffer.FileName != "" {
-				// The logic is now handled by KeyRunes, so this block can be removed or left empty.
-				// For clarity, we'll just return the model without any action.
-				return m, nil
-			}
-
-			// Normal message or command
-			if m.IsReady && !m.IsTransferring && !m.IsAwaitingAcceptance {
-				text := strings.TrimSpace(m.Textarea.Value())
-				if text == "" {
-					return m, nil
-				}
-				m.Textarea.Reset()
-
-				if strings.HasPrefix(text, "/send ") {
-					filePath := strings.TrimPrefix(text, "/send ")
-					m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Offering to send file: %s", filePath)))
-					m.IsAwaitingAcceptance = true
-					m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
-					cmd := func() tea.Msg {
-						filetransfer.RequestSendFile(m.Conn, m.SharedKey, filePath, &programMessageSender{program: m.Program}, m.MaxFileSize)
-						return nil
-					}
-					return m, cmd
-				}
-
-				if text == "/help" {
-					m.ShowHelp = !m.ShowHelp
-					return m, nil
-				}
-
-				if text == "/fingerprint" {
-					if m.MyFingerprint != "" {
-						m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)))
-					} else {
-						m.Messages = append(m.Messages, SystemStyle.Render("--- Your Key Fingerprint is not yet available."))
-					}
-					if m.PeerFingerprint != "" {
-						m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)))
-					} else {
-						m.Messages = append(m.Messages, SystemStyle.Render("--- Peer is not connected or their fingerprint is not yet available."))
-					}
-					m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-					m.Viewport.GotoBottom()
-					return m, nil
-				}
-
-				m.Messages = append(m.Messages, fmt.Sprintf("%s %s %s", TimestampStyle.Render(time.Now().Format("15:04")), SenderStyle.Render("<"+m.Nickname+">"), text))
-				cmd := func() tea.Msg {
-					if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeText, []byte(text)); err != nil {
-						return ErrorMsg{Err: err}
-					}
-					return nil
-				}
-				return m, cmd
 			}
 		}
 
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(m.headerView())
-		footerHeight := lipgloss.Height(m.footerView()) // This depends on TextareaStyle's height, which is fixed.
-		verticalMargin := headerHeight + footerHeight
-
-		// Target total width for the styled components
-		totalWidth := msg.Width
-
-		// Content width for components, assuming a 1-cell border on each side from the style
-		// lipgloss.RoundedBorder takes 1 cell on left and 1 on right.
-		contentWidth := totalWidth - 2
-		if contentWidth < 0 {
-			contentWidth = 0 // Prevent negative widths
+		var currentFooterHeight int
+		if m.IsTransferring || m.PendingOffer.FileName != "" {
+			currentFooterHeight = 1 + TextareaStyle.GetVerticalBorderSize()
+		} else {
+			currentFooterHeight = 0
 		}
-
-		m.Viewport.Width = contentWidth
-		m.Viewport.Height = msg.Height - verticalMargin // Height calculation seems okay
-
-		// Update global styles' widths. This is not ideal practice to modify global vars,
-		// but it matches the existing pattern in this codebase.
-		// These styles will be used in View() to render the components.
-		ViewportStyle = ViewportStyle.Width(totalWidth)
-		TextareaStyle = TextareaStyle.Width(totalWidth)
-
-		m.Textarea.SetWidth(contentWidth) // Textarea's content width
-
-		// Progress bar is rendered inside TextareaStyle in footerView()
-		// So its content width should also be contentWidth to align with the textarea.
-		m.Progress.Width = contentWidth
-
-		if m.IsReady {
-			// Important: Re-set content after changing viewport width to trigger re-layout and wrapping.
-			m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-			m.Viewport.GotoBottom() // Ensure it stays at the bottom after resize
+		verticalMargin := headerHeight + currentFooterHeight
+		chatAreaHeight := msg.Height - verticalMargin
+		if chatAreaHeight < 0 {
+			chatAreaHeight = 0
 		}
-
-	case progress.FrameMsg:
-		progressModel, cmd := m.Progress.Update(msg)
-		m.Progress = progressModel.(progress.Model)
-		pgCmd = cmd
+		m.chatArea.SetDimensions(msg.Width, chatAreaHeight)
+		StatusStyle = StatusStyle.Width(msg.Width)
+		TextareaStyle = TextareaStyle.Width(msg.Width)
+		progressContainerContentWidth := msg.Width - TextareaStyle.GetHorizontalBorderSize() - TextareaStyle.GetHorizontalPadding()
+		if progressContainerContentWidth < 0 {
+			progressContainerContentWidth = 0
+		}
+		m.Progress.Width = progressContainerContentWidth
 
 	case ConnectionMsg:
 		m.Conn = msg.Conn
@@ -402,45 +345,42 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SharedKeyMsg:
 		m.SharedKey = msg.Key
 		m.Status = fmt.Sprintf("CONNECTED to %s: Exchanging nicknames...", m.Conn.RemoteAddr().String())
-		// Send our nickname to the peer
 		cmd := func() tea.Msg {
 			if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeNickname, []byte(m.Nickname)); err != nil {
 				return ErrorMsg{Err: err}
 			}
 			return nil
 		}
-		return m, cmd
+		cmds = append(cmds, cmd)
 
 	case MyPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
 		m.MyFingerprint = fmt.Sprintf("%x", hash[:8])
 	case PeerPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
-		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8]) // Use first 8 bytes for a shorter fingerprint
-		// Display both fingerprints in chat area for IRC style
+		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8])
+		now := time.Now()
 		if m.MyFingerprint == "" {
-			// This case should ideally not happen if MyPublicKeyMsg is always processed first.
-			// But as a fallback, let the user know their own FP is pending or there's an issue.
-			m.Messages = append(m.Messages, SystemStyle.Render("Attempting to display fingerprints; your own fingerprint is not yet available."))
+			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Attempting to display fingerprints; your own fingerprint is not yet available."})
 		} else {
-			m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)))
+			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
 		}
-		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)))
-		m.Messages = append(m.Messages, SystemStyle.Render("--- Please verify these fingerprints with your peer through a trusted channel."))
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Please verify these fingerprints with your peer through a trusted channel."})
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
 		m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		m.IsReady = true
-		m.Viewport.SetContent(SystemStyle.Render(fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /send <file_path> to send a file.", m.Nickname, m.PeerNickname)))
-		m.Viewport.GotoBottom()
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /help for a list of commands or /send <file_path> to send a file.", m.Nickname, m.PeerNickname)})
+		cmds = append(cmds, func() tea.Msg { return FocusTextareaMsg{} })
 
 	case ReceivedTextMsg:
-		m.Messages = append(m.Messages, fmt.Sprintf("%s %s %s", TimestampStyle.Render(time.Now().Format("15:04")), ReceiverStyle.Render("<"+m.PeerNickname+">"), msg.Text))
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.PeerNickname, Content: msg.Text})
 
 	case FileOfferMsg:
 		m.PendingOffer = msg.Metadata
-		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)))
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)})
 		m.Status = fmt.Sprintf("TRANSFERRING: Receiving file offer for %s", msg.Metadata.FileName)
 
 	case FileOfferAcceptedMsg:
@@ -448,15 +388,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IsTransferring = true
 		m.Progress.SetPercent(0)
 		m.Status = fmt.Sprintf("TRANSFERRING: Sending %s", filepath.Base(msg.Metadata.OriginalPath))
-		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)))
-		return m, func() tea.Msg {
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)})
+		cmds = append(cmds, func() tea.Msg {
 			filetransfer.SendFileChunks(m.Conn, m.SharedKey, msg.Metadata.OriginalPath, &programMessageSender{program: m.Program})
 			return nil
-		}
+		})
 
 	case FileOfferRejectedMsg:
 		m.IsAwaitingAcceptance = false
-		m.Messages = append(m.Messages, SystemStyle.Render("Peer rejected the file transfer."))
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Peer rejected the file transfer."})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -465,7 +405,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileOfferFailedMsg:
 		m.IsAwaitingAcceptance = false
-		m.Messages = append(m.Messages, ErrorStyle.Render("File offer failed: "+msg.Reason))
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: "File offer failed: " + msg.Reason})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -474,7 +414,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileSendingCompleteMsg:
 		m.IsTransferring = false
-		m.Messages = append(m.Messages, SystemStyle.Render("File transfer complete."))
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -489,8 +429,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			m.TotalBytesReceived += int64(bytesWritten)
-			progress := float64(m.TotalBytesReceived) / float64(m.PendingOffer.FileSize)
-			pgCmd = m.Progress.SetPercent(progress)
+			progressVal := float64(m.TotalBytesReceived) / float64(m.PendingOffer.FileSize)
+			cmds = append(cmds, m.Progress.SetPercent(progressVal))
 		}
 
 	case FileDoneMsg:
@@ -502,7 +442,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.IsTransferring = false
 			m.IsReceiving = false
-			m.Messages = append(m.Messages, SystemStyle.Render("File transfer complete."))
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."})
 			if m.IsConnected {
 				m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 			} else {
@@ -512,35 +452,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileTransferProgress:
 		percent := float64(msg)
-		pgCmd = m.Progress.SetPercent(percent)
+		cmds = append(cmds, m.Progress.SetPercent(percent))
 		if percent >= 1.0 && !m.IsReceiving {
-			return m, func() tea.Msg { return FileSendingCompleteMsg{} }
+			cmds = append(cmds, func() tea.Msg { return FileSendingCompleteMsg{} })
 		}
 
 	case InfoMsg:
-		m.Messages = append(m.Messages, SystemStyle.Render(msg.Info))
-		return m, nil
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: msg.Info})
 
 	case ConnectionClosedMsg:
 		m.IsConnected = false
 		m.Status = "DISCONNECTED: Connection closed by server (session may have timed out)."
-		m.Messages = append(m.Messages, ErrorStyle.Render(m.Status))
-		// We don't quit here, to allow the user to see the message.
-		// They can exit with Ctrl+C.
-		return m, nil
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: m.Status})
 
 	case ErrorMsg:
 		m.Err = msg.Err
 		return m, tea.Quit
 	}
 
-	m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
-	m.Viewport.GotoBottom()
-
-	return m, tea.Batch(taCmd, vpCmd, pgCmd)
+	return m, tea.Batch(cmds...)
 }
 
-// View renders the UI.
 func (m *Model) View() string {
 	if m.Err != nil {
 		return fmt.Sprintf("An error occurred: %v\n\nPress Ctrl+C to quit.", m.Err)
@@ -550,12 +482,21 @@ func (m *Model) View() string {
 		return m.helpView()
 	}
 
+	chatAreaViewString := m.chatArea.View(m.Messages)
+	footerString := m.footerView()
+
+	if footerString != "" {
+		return fmt.Sprintf(
+			"%s\n%s\n%s",
+			m.headerView(),
+			chatAreaViewString,
+			footerString,
+		)
+	}
 	return fmt.Sprintf(
-		"%s\n%s\n%s",
+		"%s\n%s",
 		m.headerView(),
-		// m.infoPaneView(), // Removed for IRC style
-		ViewportStyle.Render(m.Viewport.View()),
-		m.footerView(),
+		chatAreaViewString,
 	)
 }
 
@@ -564,16 +505,16 @@ func (m *Model) helpView() string {
 		"Available Commands:\n" +
 			"  /send <file_path> - Send a file\n" +
 			"  /help             - Toggle this help message\n" +
-			"  /quit             - Disconnect and exit\n" +
+			"  /quit             - Disconnect and exit (Ctrl+C/Esc also works)\n" +
 			"\nKeybindings:\n" +
 			"  Ctrl+C/Esc        - Disconnect and exit\n" +
-			"  Enter             - Send message or confirm file transfer\n" +
+			"  Enter             - Send message\n" +
+			"\nFile Transfer:\n" +
+			"  'y' or 'Y'        - Accept incoming file offer\n" +
+			"  'n' or 'N'        - Reject incoming file offer\n" +
 			"\n(Press Esc to close this help menu)",
 	)
 }
-
-// infoPaneView is removed as part of IRC style redesign.
-// Fingerprints will be shown in chat on connection.
 
 func (m *Model) headerView() string {
 	if m.SessionID != "" {
@@ -589,5 +530,5 @@ func (m *Model) footerView() string {
 	if m.PendingOffer.FileName != "" {
 		return TextareaStyle.Render("Accept file? (y/n)")
 	}
-	return TextareaStyle.Render(m.Textarea.View())
+	return ""
 }
