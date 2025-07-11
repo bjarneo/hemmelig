@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"errors" // Added missing import
 	"fmt"
 	"io"
 	"net"
