@@ -3,8 +3,8 @@ package ui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	ViewportStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62"))
-	TextareaStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("205"))
+	// ViewportStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("62")) // No longer used for main chat viewport
+	TextareaStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("205")) // Used for footer elements
 	StatusStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	ErrorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	SenderStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
