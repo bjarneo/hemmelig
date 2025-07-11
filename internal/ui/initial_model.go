@@ -31,22 +31,23 @@ const (
 
 func NewInitialModel(relayServerAddr string, maxFileSize int) *InitialModel {
 	sessionIDInput := textinput.New()
-	sessionIDInput.Placeholder = "Session ID"
-	sessionIDInput.Focus()
+	// Placeholder will be set dynamically based on choice
 	nicknameInput := textinput.New()
 	nicknameInput.Placeholder = "Your Nickname"
 
-	return &InitialModel{
+	m := &InitialModel{
 		relayServerAddr: relayServerAddr,
 		maxFileSize:     maxFileSize,
 		sessionIDInput:  sessionIDInput,
 		nicknameInput:   nicknameInput,
 		state:           chooseCreateOrJoin,
 	}
+	// Initial focus depends on the first state, which is chooseCreateOrJoin, so no input is focused yet.
+	return m
 }
 
 func (m *InitialModel) Init() tea.Cmd {
-	return textinput.Blink
+	return textinput.Blink // General blink command, specific input focus is handled in Update
 }
 
 func (m *InitialModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -62,11 +63,13 @@ func (m *InitialModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case chooseCreateOrJoin:
 				// Not used, selection is based on 'c' or 'j'
 			case enterSessionID:
+				// Session ID entered (or skipped for create), move to nickname
 				m.state = enterNickname
+				m.nicknameInput.SetValue("") // Clear nickname input in case of re-entry
 				m.nicknameInput.Focus()
 				return m, textinput.Blink
 			case enterNickname:
-				// Transition to the main UI
+				// Nickname entered, transition to the main UI
 				nickname := strings.TrimSpace(m.nicknameInput.Value())
 				if nickname == "" {
 					nickname = util.GenerateRandomNickname()
@@ -84,12 +87,16 @@ func (m *InitialModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s = strings.TrimSpace(strings.ToUpper(s))
 				if s == "C" {
 					m.choice = "CREATE"
-					m.state = enterNickname
-					m.nicknameInput.Focus()
+					m.state = enterSessionID
+					m.sessionIDInput.Placeholder = "Desired Session ID (optional, press Enter to auto-generate)"
+					m.sessionIDInput.SetValue("") // Clear previous value
+					m.sessionIDInput.Focus()
 					return m, textinput.Blink
 				} else if s == "J" {
 					m.choice = "JOIN"
 					m.state = enterSessionID
+					m.sessionIDInput.Placeholder = "Session ID to Join"
+					m.sessionIDInput.SetValue("") // Clear previous value
 					m.sessionIDInput.Focus()
 					return m, textinput.Blink
 				}
@@ -119,8 +126,15 @@ func (m *InitialModel) View() string {
 	case chooseCreateOrJoin:
 		return "Do you want to (C)reate a new session or (J)oin an existing one? (C/J)\n"
 	case enterSessionID:
+		var title string
+		if m.choice == "CREATE" {
+			title = "Enter desired Session ID (optional, press Enter to auto-generate):"
+		} else {
+			title = "Enter the Session ID to join:"
+		}
 		return fmt.Sprintf(
-			"Enter the session ID to join:\n%s\n\n(esc to quit)",
+			"%s\n%s\n\n(esc to quit)",
+			title,
 			m.sessionIDInput.View(),
 		)
 	case enterNickname:
