@@ -2,14 +2,14 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"crypto/rand"
-	"encoding/hex"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -166,8 +166,8 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 		conn.Write([]byte(fmt.Sprintf("Joined session: %s\n", finalSessionID)))
 
 		// Start relaying data between clients
-		go s.relayData(session.Clients[0], session.Clients[1], sessionID)
-		go s.relayData(session.Clients[1], session.Clients[0], sessionID)
+		go s.relayData(session.Clients[0], session.Clients[1], finalSessionID)
+		go s.relayData(session.Clients[1], session.Clients[0], finalSessionID)
 
 	default:
 		log.Println("Received unknown command from a client.")
@@ -206,7 +206,6 @@ func (s *RelayServer) relayData(src, dst net.Conn, sessionID string) {
 		// Copy a chunk of data. io.Copy will use our limitedSrc.
 		// We copy in chunks to allow the deadline to be checked periodically.
 		_, err := io.CopyN(dst, limitedSrc, 4096)
-
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Println("A session timed out due to 5 minutes of inactivity.")
