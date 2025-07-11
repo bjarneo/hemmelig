@@ -139,8 +139,9 @@ func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize 
 	ta.Placeholder = "Type a message or type /help for a list of commands..."
 	ta.Focus()
 	ta.CharLimit = 0
-	ta.SetHeight(3)
+	ta.SetHeight(1) // Changed from 3 to 1 for a single-line input area within the border
 	ta.ShowLineNumbers = false
+	ta.Prompt = "> " // Added prompt for IRC look
 
 	vp := viewport.New(80, 10)
 	vp.SetContent("Waiting for connection...")
@@ -324,7 +325,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 
-				m.Messages = append(m.Messages, fmt.Sprintf("%s %s%s", TimestampStyle.Render(time.Now().Format("15:04")), SenderStyle.Render(m.Nickname+": "), text))
+				if text == "/fingerprint" {
+					if m.MyFingerprint != "" {
+						m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)))
+					} else {
+						m.Messages = append(m.Messages, SystemStyle.Render("--- Your Key Fingerprint is not yet available."))
+					}
+					if m.PeerFingerprint != "" {
+						m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)))
+					} else {
+						m.Messages = append(m.Messages, SystemStyle.Render("--- Peer is not connected or their fingerprint is not yet available."))
+					}
+					m.Viewport.SetContent(strings.Join(m.Messages, "\n"))
+					m.Viewport.GotoBottom()
+					return m, nil
+				}
+
+				m.Messages = append(m.Messages, fmt.Sprintf("%s %s %s", TimestampStyle.Render(time.Now().Format("15:04")), SenderStyle.Render("<"+m.Nickname+">"), text))
 				cmd := func() tea.Msg {
 					if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeText, []byte(text)); err != nil {
 						return ErrorMsg{Err: err}
@@ -337,9 +354,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(m.headerView())
-		infoPaneHeight := lipgloss.Height(m.infoPaneView())
 		footerHeight := lipgloss.Height(m.footerView()) // This depends on TextareaStyle's height, which is fixed.
-		verticalMargin := headerHeight + infoPaneHeight + footerHeight
+		verticalMargin := headerHeight + footerHeight
 
 		// Target total width for the styled components
 		totalWidth := msg.Width
@@ -401,8 +417,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PeerPublicKeyMsg:
 		hash := sha256.Sum256(msg.PublicKey)
 		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8]) // Use first 8 bytes for a shorter fingerprint
-		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("Peer's Key Fingerprint: %s", m.PeerFingerprint)))
-		m.Messages = append(m.Messages, SystemStyle.Render("Please verify this fingerprint with your peer through a trusted channel."))
+		// Display both fingerprints in chat area for IRC style
+		if m.MyFingerprint == "" {
+			// This case should ideally not happen if MyPublicKeyMsg is always processed first.
+			// But as a fallback, let the user know their own FP is pending or there's an issue.
+			m.Messages = append(m.Messages, SystemStyle.Render("Attempting to display fingerprints; your own fingerprint is not yet available."))
+		} else {
+			m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)))
+		}
+		m.Messages = append(m.Messages, SystemStyle.Render(fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)))
+		m.Messages = append(m.Messages, SystemStyle.Render("--- Please verify these fingerprints with your peer through a trusted channel."))
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
@@ -412,7 +436,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Viewport.GotoBottom()
 
 	case ReceivedTextMsg:
-		m.Messages = append(m.Messages, fmt.Sprintf("%s %s%s", TimestampStyle.Render(time.Now().Format("15:04")), ReceiverStyle.Render(m.PeerNickname+": "), msg.Text))
+		m.Messages = append(m.Messages, fmt.Sprintf("%s %s %s", TimestampStyle.Render(time.Now().Format("15:04")), ReceiverStyle.Render("<"+m.PeerNickname+">"), msg.Text))
 
 	case FileOfferMsg:
 		m.PendingOffer = msg.Metadata
@@ -527,9 +551,9 @@ func (m *Model) View() string {
 	}
 
 	return fmt.Sprintf(
-		"%s\n%s\n%s\n%s",
+		"%s\n%s\n%s",
 		m.headerView(),
-		m.infoPaneView(),
+		// m.infoPaneView(), // Removed for IRC style
 		ViewportStyle.Render(m.Viewport.View()),
 		m.footerView(),
 	)
@@ -548,12 +572,8 @@ func (m *Model) helpView() string {
 	)
 }
 
-func (m *Model) infoPaneView() string {
-	myKey := InfoBoxStyle.Render(fmt.Sprintf("Your Fingerprint: %s", m.MyFingerprint))
-	peerKey := InfoBoxStyle.Render(fmt.Sprintf("Peer Fingerprint: %s", m.PeerFingerprint))
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, myKey, peerKey)
-}
+// infoPaneView is removed as part of IRC style redesign.
+// Fingerprints will be shown in chat on connection.
 
 func (m *Model) headerView() string {
 	if m.SessionID != "" {
