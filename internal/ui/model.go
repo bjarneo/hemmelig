@@ -13,12 +13,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
-	// Removed "github.com/charmbracelet/bubbles/textarea"
-	// Removed "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	// "github.com/dothash/hemmelig-cli/chatview" // Types moved into this package (ui)
 	"github.com/dothash/hemmelig-cli/internal/filetransfer"
 	"github.com/dothash/hemmelig-cli/internal/network"
 	"github.com/dothash/hemmelig-cli/internal/protocol"
@@ -114,13 +111,12 @@ type Model struct {
 	Nickname     string
 	PeerNickname string
 
-	chatArea    ChatAreaModel // New chat area component (type is now local to ui package)
+	chatArea    ChatAreaModel
 	Progress    progress.Model
-	Messages    []Message     // Stores structured messages (type is now local to ui package)
+	Messages    []Message
 	IsReady     bool
 	IsConnected bool
 
-	// File transfer state
 	IsTransferring       bool
 	IsReceiving          bool
 	IsAwaitingAcceptance bool
@@ -133,12 +129,11 @@ type Model struct {
 	MaxFileSize          int64
 }
 
-// NewModel creates a new UI model.
 func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize int64) *Model {
 	initialWidth := 80
 	initialChatAreaHeight := 20
 
-	ca := NewChatAreaModel(initialWidth, initialChatAreaHeight, nickname) // Use local NewChatAreaModel
+	ca := NewChatAreaModel(initialWidth, initialChatAreaHeight, nickname)
 	prog := progress.New(progress.WithDefaultGradient())
 
 	m := &Model{
@@ -148,16 +143,14 @@ func NewModel(relayServerAddr, sessionID, nickname, command string, maxFileSize 
 		Status:          fmt.Sprintf("Connecting to relay server %s...", relayServerAddr),
 		chatArea:        ca,
 		Progress:        prog,
-		Messages:        []Message{{Timestamp: time.Now(), Sender: "System", Content: "Waiting for connection..."}}, // Use local Message
+		Messages:        []Message{{Timestamp: time.Now(), Sender: "System", Content: "Waiting for connection..."}},
 		Command:         command,
 		MaxFileSize:     maxFileSize * 1024 * 1024,
 	}
 	return m
 }
 
-// Init initializes the model.
 func (m *Model) Init() tea.Cmd {
-	// ... (Init function remains the same as before)
 	return func() tea.Msg {
 		var conn net.Conn
 		var err error
@@ -171,7 +164,7 @@ func (m *Model) Init() tea.Cmd {
 			return ErrorMsg{Err: fmt.Errorf("failed to connect to relay server: %w", err)}
 		}
 
-		initialMsg := struct {
+		initialMsgStruct := struct {
 			Command   string `json:"command"`
 			SessionID string `json:"sessionID,omitempty"`
 		}{
@@ -179,7 +172,7 @@ func (m *Model) Init() tea.Cmd {
 			SessionID: m.SessionID,
 		}
 
-		msgBytes, err := json.Marshal(initialMsg)
+		msgBytes, err := json.Marshal(initialMsgStruct)
 		if err != nil {
 			return ErrorMsg{Err: fmt.Errorf("failed to marshal initial message: %w", err)}
 		}
@@ -207,12 +200,10 @@ func (m *Model) Init() tea.Cmd {
 	}
 }
 
-// Update handles messages and updates the model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		chatAreaCmd tea.Cmd
-		// pgCmd       tea.Cmd // pgCmd is assigned directly to cmds
-		cmds []tea.Cmd
+		cmds        []tea.Cmd
 	)
 
 	if m.IsTransferring {
@@ -232,7 +223,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case SubmitInputMsg: // Corrected: Was chatview.SubmitInputMsg
+	case SubmitInputMsg:
 		text := strings.TrimSpace(msg.Content)
 		if text == "" {
 			return m, tea.Batch(cmds...)
@@ -240,7 +231,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if strings.HasPrefix(text, "/send ") {
 			filePath := strings.TrimPrefix(text, "/send ")
-			m.Messages = append(m.Messages, chatview.Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Offering to send file: %s", filePath)})
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Offering to send file: %s", filePath)})
 			m.IsAwaitingAcceptance = true
 			m.Status = fmt.Sprintf("TRANSFERRING: Offering to send %s", filepath.Base(filePath))
 			cmd := func() tea.Msg {
@@ -253,17 +244,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if text == "/fingerprint" {
 			now := time.Now()
 			if m.MyFingerprint != "" {
-				m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
 			} else {
-				m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: "--- Your Key Fingerprint is not yet available."})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Your Key Fingerprint is not yet available."})
 			}
 			if m.PeerFingerprint != "" {
-				m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
 			} else {
-				m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: "--- Peer is not connected or their fingerprint is not yet available."})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Peer is not connected or their fingerprint is not yet available."})
 			}
 		} else {
-			m.Messages = append(m.Messages, chatview.Message{Timestamp: time.Now(), Sender: m.Nickname, Content: text})
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.Nickname, Content: text})
 			cmd := func() tea.Msg {
 				if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeText, []byte(text)); err != nil {
 					return ErrorMsg{Err: err}
@@ -278,7 +269,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Type == tea.KeyEsc {
 				m.ShowHelp = false
 			}
-		} else { // Only process these if help is not shown
+		} else {
 			switch msg.Type {
 			case tea.KeyCtrlC, tea.KeyEsc:
 				if m.Conn != nil {
@@ -289,7 +280,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.PendingOffer.FileName != "" && len(msg.Runes) > 0 {
 					switch msg.Runes[0] {
 					case 'y', 'Y':
-						m.Messages = append(m.Messages, chatview.Message{Timestamp: time.Now(), Sender: "System", Content: "Accepting file transfer..."})
+						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Accepting file transfer..."})
 						metaBytes, _ := m.PendingOffer.ToJSON()
 						cmd := func() tea.Msg {
 							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileAccept, metaBytes); err != nil {
@@ -309,7 +300,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.TotalBytesReceived = 0
 						m.Progress.SetPercent(0)
 					case 'n', 'N':
-						m.Messages = append(m.Messages, chatview.Message{Timestamp: time.Now(), Sender: "System", Content: "Rejected file transfer."})
+						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Rejected file transfer."})
 						cmd := func() tea.Msg {
 							if err := network.SendData(m.Conn, m.SharedKey, protocol.TypeFileReject, nil); err != nil {
 								return ErrorMsg{Err: err}
@@ -370,26 +361,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.PeerFingerprint = fmt.Sprintf("%x", hash[:8])
 		now := time.Now()
 		if m.MyFingerprint == "" {
-			m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: "Attempting to display fingerprints; your own fingerprint is not yet available."})
+			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Attempting to display fingerprints; your own fingerprint is not yet available."})
 		} else {
-			m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
+			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
 		}
-		m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
-		m.Messages = append(m.Messages, chatview.Message{Timestamp: now, Sender: "System", Content: "--- Please verify these fingerprints with your peer through a trusted channel."})
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Please verify these fingerprints with your peer through a trusted channel."})
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
 		m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		m.IsReady = true
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /help for a list of commands or /send <file_path> to send a file.", m.Nickname, m.PeerNickname)}) // Use local Message
-		cmds = append(cmds, func() tea.Msg { return FocusTextareaMsg{} }) // Corrected: Was chatview.FocusTextareaMsg
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Welcome to secure chat! You are %s, connected to %s. Type /help for a list of commands or /send <file_path> to send a file.", m.Nickname, m.PeerNickname)})
+		cmds = append(cmds, func() tea.Msg { return FocusTextareaMsg{} })
 
 	case ReceivedTextMsg:
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.PeerNickname, Content: msg.Text}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.PeerNickname, Content: msg.Text})
 
 	case FileOfferMsg:
 		m.PendingOffer = msg.Metadata
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)})
 		m.Status = fmt.Sprintf("TRANSFERRING: Receiving file offer for %s", msg.Metadata.FileName)
 
 	case FileOfferAcceptedMsg:
@@ -397,7 +388,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IsTransferring = true
 		m.Progress.SetPercent(0)
 		m.Status = fmt.Sprintf("TRANSFERRING: Sending %s", filepath.Base(msg.Metadata.OriginalPath))
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer accepted file: %s. Starting transfer...", msg.Metadata.FileName)})
 		cmds = append(cmds, func() tea.Msg {
 			filetransfer.SendFileChunks(m.Conn, m.SharedKey, msg.Metadata.OriginalPath, &programMessageSender{program: m.Program})
 			return nil
@@ -405,7 +396,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileOfferRejectedMsg:
 		m.IsAwaitingAcceptance = false
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Peer rejected the file transfer."}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Peer rejected the file transfer."})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -414,7 +405,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileOfferFailedMsg:
 		m.IsAwaitingAcceptance = false
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: "File offer failed: " + msg.Reason}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: "File offer failed: " + msg.Reason})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -423,7 +414,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileSendingCompleteMsg:
 		m.IsTransferring = false
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."})
 		if m.IsConnected {
 			m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 		} else {
@@ -451,7 +442,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.IsTransferring = false
 			m.IsReceiving = false
-			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."}) // Use local Message
+			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "File transfer complete."})
 			if m.IsConnected {
 				m.Status = fmt.Sprintf("CONNECTED to %s: Chatting with %s", m.Conn.RemoteAddr().String(), m.PeerNickname)
 			} else {
@@ -467,12 +458,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case InfoMsg:
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: msg.Info}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: msg.Info})
 
 	case ConnectionClosedMsg:
 		m.IsConnected = false
 		m.Status = "DISCONNECTED: Connection closed by server (session may have timed out)."
-		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: m.Status}) // Use local Message
+		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "Error", Content: m.Status})
 
 	case ErrorMsg:
 		m.Err = msg.Err
@@ -482,7 +473,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// View renders the UI.
 func (m *Model) View() string {
 	if m.Err != nil {
 		return fmt.Sprintf("An error occurred: %v\n\nPress Ctrl+C to quit.", m.Err)
@@ -492,9 +482,7 @@ func (m *Model) View() string {
 		return m.helpView()
 	}
 
-	// Messages are now []chatview.Message, so pass directly
 	chatAreaViewString := m.chatArea.View(m.Messages)
-
 	footerString := m.footerView()
 
 	if footerString != "" {
@@ -544,6 +532,3 @@ func (m *Model) footerView() string {
 	}
 	return ""
 }
-
-// Removed transformMessagesForChatArea as m.Messages is now []chatview.Message
-// and can be passed directly to m.chatArea.View()
