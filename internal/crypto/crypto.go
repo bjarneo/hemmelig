@@ -50,12 +50,8 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 }
 
 // Helper for PerformKeyExchange to read one TLV message (unencrypted payload)
-func readTLVFromConn(conn io.Reader) (byte, []byte, error) {
-	// Using bufio.NewReader here. If conn is already a buffered reader,
-	// this might be redundant but generally safe.
-	// If conn is a raw net.Conn, this is beneficial.
-	reader := bufio.NewReader(conn)
-
+// The caller is responsible for providing a buffered reader.
+func readTLVFromConn(reader *bufio.Reader) (byte, []byte, error) {
 	msgType, err := reader.ReadByte()
 	if err != nil {
 		return 0, nil, fmt.Errorf("readTLV: failed to read msgType: %w", err)
@@ -67,13 +63,20 @@ func readTLVFromConn(conn io.Reader) (byte, []byte, error) {
 	}
 
 	// Safety limit for public key payload
-	if length > 1024 {
-		return 0, nil, fmt.Errorf("readTLV: message length %d too large for key exchange payload", length)
+	if msgType == protocol.TypePublicKeyExchange {
+		if length != 32 {
+			return 0, nil, fmt.Errorf("readTLV: public key exchange payload must be 32 bytes, got %d", length)
+		}
+	} else {
+		// Generic length check for other types, if this function were to be used more broadly.
+		// For now, it's only used for TypePublicKeyExchange.
+		if length > 10*1024*1024 { // Example: 10MB general limit for other potential uses.
+			return 0, nil, fmt.Errorf("readTLV: message length %d too large", length)
+		}
+		if length == 0 && msgType != protocol.TypeFileReject { // TypeFileReject can have 0 length data
+			return 0, nil, errors.New("readTLV: received zero length payload for message type that requires data")
+		}
 	}
-	if length == 0 { // Public key should not be zero length
-		return 0, nil, errors.New("readTLV: received zero length public key payload")
-	}
-
 
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(reader, payload); err != nil {
@@ -94,6 +97,12 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, [
 
 	var theirPublicKeyBytes [32]byte
 
+	// Create a buffered reader for the connection once.
+	// conn is an io.ReadWriter; we need io.Reader for bufio.NewReader.
+	// We also need io.Writer for sending.
+	reader := bufio.NewReader(conn)
+	writer := conn // conn itself is an io.Writer
+
 	if isInitiator {
 		// Initiator sends its public key first (TLV, unencrypted)
 		payloadToSend := publicKey[:]
@@ -102,12 +111,12 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, [
 		binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
 		fullMsg := append(msgHeader, payloadToSend...)
 
-		if _, err := conn.Write(fullMsg); err != nil {
+		if _, err := writer.Write(fullMsg); err != nil {
 			return nil, nil, nil, fmt.Errorf("initiator failed to send public key: %w", err)
 		}
 
 		// Then, initiator receives peer's key (TLV, unencrypted)
-		recvMsgType, recvPayload, err := readTLVFromConn(conn)
+		recvMsgType, recvPayload, err := readTLVFromConn(reader) // Pass the bufio.Reader
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("initiator failed to read peer's public key: %w", err)
 		}
@@ -121,7 +130,7 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, [
 
 	} else { // Responder
 		// Responder receives peer's key first (TLV, unencrypted)
-		recvMsgType, recvPayload, err := readTLVFromConn(conn)
+		recvMsgType, recvPayload, err := readTLVFromConn(reader) // Pass the bufio.Reader
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("responder failed to read peer's public key: %w", err)
 		}
@@ -140,7 +149,7 @@ func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, [
 		binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
 		fullMsg := append(msgHeader, payloadToSend...)
 
-		if _, err := conn.Write(fullMsg); err != nil {
+		if _, err := writer.Write(fullMsg); err != nil {
 			return nil, nil, nil, fmt.Errorf("responder failed to send public key: %w", err)
 		}
 	}

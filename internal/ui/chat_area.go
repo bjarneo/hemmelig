@@ -175,18 +175,32 @@ func (m *ChatAreaModel) SetDimensions(width, totalAllocatedHeight int) {
 	m.width = width
 	m.height = totalAllocatedHeight
 
-	// Input area height calculation (border + text + border)
-	// Textarea height adapts, so use its current requirement.
-	inputBoxVisualHeight := m.textarea.Height() + 2 // +2 for top/bottom border of the input box container
-	if inputBoxVisualHeight < 3 {
-		inputBoxVisualHeight = 3 // Minimum 1 line content + 2 border lines
-	}
-	if inputBoxVisualHeight > totalAllocatedHeight { // Cap input height if it's too large
-		inputBoxVisualHeight = totalAllocatedHeight
+	// Define the intended input box style to measure its chrome (borders + vertical padding)
+	// This must match the style defined later in View() for consistency.
+	// Assuming NormalBorder (1px top, 1px bottom = 2px border) and no vertical padding for the container.
+	// If View() adds vertical padding to inputStyle, it must be accounted for here.
+	inputBoxStyleForMeasurement := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true)
+		// If inputStyle in View() has PaddingTop/Bottom, add them here too:
+		// PaddingTop(0).
+		// PaddingBottom(0).
+
+	inputBoxChromeHeight := inputBoxStyleForMeasurement.GetVerticalBorderSize() + inputBoxStyleForMeasurement.GetVerticalPadding()
+
+	calculatedInputBoxHeight := m.textarea.Height() + inputBoxChromeHeight
+	if calculatedInputBoxHeight < (1 + inputBoxChromeHeight) { // Min 1 line of text area content
+		calculatedInputBoxHeight = 1 + inputBoxChromeHeight
 	}
 
+	// Ensure the calculated height does not exceed the total allocated height
+	if calculatedInputBoxHeight > totalAllocatedHeight {
+		calculatedInputBoxHeight = totalAllocatedHeight
+	}
+	// Assign to a variable that View might also use or re-calculate similarly
+	// For now, SetDimensions determines the split.
+	inputBoxFinalHeight := calculatedInputBoxHeight
 
-	vpHeight := totalAllocatedHeight - inputBoxVisualHeight
+	vpHeight := totalAllocatedHeight - inputBoxFinalHeight
 	if vpHeight < 0 {
 		vpHeight = 0
 	}
@@ -225,22 +239,37 @@ func (m *ChatAreaModel) View(messagesToDisplay []Message) string {
 
 
 	// Input box style
-	// The textarea.Height() determines how many lines it needs. Add 2 for container border.
-	inputBoxVisualHeight := m.textarea.Height() + 2
-	if inputBoxVisualHeight < 3 { inputBoxVisualHeight = 3 }
-	if inputBoxVisualHeight > m.height { // Cap input height if it's too large for allocated space
-		// This scenario should ideally be prevented by SetDimensions logic
-		inputBoxVisualHeight = m.height
+	// Define the base style properties first (border, padding)
+	baseInputStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true). // Full border for input box
+		PaddingLeft(1).                        // Padding for text area within its border
+		PaddingRight(1)
+		// PaddingTop(0). // Explicitly 0, or consistent with SetDimensions measurement
+		// PaddingBottom(0).
+
+	// Calculate the required height for the input box container
+	inputBoxChromeHeightView := baseInputStyle.GetVerticalBorderSize() + baseInputStyle.GetVerticalPadding()
+	inputBoxRequiredHeightView := m.textarea.Height() + inputBoxChromeHeightView
+
+	minInputBoxHeight := 1 + inputBoxChromeHeightView // Min 1 line of content
+	if inputBoxRequiredHeightView < minInputBoxHeight {
+		inputBoxRequiredHeightView = minInputBoxHeight
+	}
+
+	// Ensure the height doesn't exceed the total allocated height for the chat area (m.height)
+	// and also doesn't exceed the portion of m.height not used by the viewport.
+	// The viewport height (m.viewport.Height) was set by SetDimensions.
+	// So, the input box should take m.height - m.viewport.Height.
+	// This ensures consistency with SetDimensions.
+	finalInputBoxHeight := m.height - m.viewport.Height
+	if finalInputBoxHeight < minInputBoxHeight { // Safety, should not happen if SetDimensions is correct
+		finalInputBoxHeight = minInputBoxHeight
 	}
 
 
-	currentInputStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true). // Full border for input box
-		Width(m.width).                        // Outer width
-		Height(inputBoxVisualHeight).
-		PaddingLeft(1). // Padding for text area within its border
-		PaddingRight(1)
-	m.inputStyle = currentInputStyle
+	m.inputStyle = baseInputStyle.Copy().
+		Width(m.width).
+		Height(finalInputBoxHeight) // Use the height determined by SetDimensions' allocation
 
 	// Update textarea prompt dynamically
 	m.textarea.Prompt = m.userNickname + ": "
