@@ -15,7 +15,6 @@ The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH
 
 <img width="762" height="501" alt="Screenshot from 2025-07-11 20-59-15" src="https://github.com/user-attachments/assets/dd5a13ed-74ab-485d-9b1a-b19baa302944" />
 
-
 ## Features
 
 - **End-to-End Encryption:** All messages and files are encrypted using **AES-256-GCM**. The 256-bit symmetric key is derived from a Curve25519 key exchange.
@@ -80,7 +79,7 @@ Open a new terminal to start the client. You will be prompted to create or join 
 
 The client can be customized with the following flags:
 
-- `-relay-server-addr <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
+- `-relay-server <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
 - `-session-id <id>`: Immediately joins a session with the given ID without prompting.
 
 ## Security Features
