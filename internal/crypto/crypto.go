@@ -85,7 +85,6 @@ func readTLVFromConn(reader *bufio.Reader) (byte, []byte, error) {
 	return msgType, payload, nil
 }
 
-
 // PerformKeyExchange performs a Curve25519 key exchange using TLV-formatted messages for public keys.
 // It returns the shared key, the user's public key, and the peer's public key.
 func PerformKeyExchange(conn io.ReadWriter, isInitiator bool) ([]byte, []byte, []byte, error) {

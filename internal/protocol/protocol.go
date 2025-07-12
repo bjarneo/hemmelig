@@ -5,13 +5,13 @@ import "encoding/json"
 // --- Protocol Definition ---
 
 const (
-	TypeNickname   byte = 0x00
-	TypeText       byte = 0x01
-	TypeFileOffer  byte = 0x02
-	TypeFileAccept byte = 0x03
-	TypeFileReject byte = 0x04
-	TypeFileChunk  byte = 0x05
-	TypeFileDone   byte = 0x06
+	TypeNickname          byte = 0x00
+	TypeText              byte = 0x01
+	TypeFileOffer         byte = 0x02
+	TypeFileAccept        byte = 0x03
+	TypeFileReject        byte = 0x04
+	TypeFileChunk         byte = 0x05
+	TypeFileDone          byte = 0x06
 	TypePublicKeyExchange byte = 0x0A // New type for public key exchange
 )
 

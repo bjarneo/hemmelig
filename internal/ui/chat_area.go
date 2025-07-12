@@ -2,8 +2,6 @@ package ui
 
 import (
 	"fmt"
-	// "log" // Removed unused import
-	// "os"  // Removed unused import
 	"path/filepath" // Added for filepath.Glob
 	"strings"
 	"time"
@@ -52,7 +50,7 @@ func NewChatAreaModel(initialWidth, initialHeight int, userNickname string) Chat
 
 	ta.CharLimit = 0
 	ta.SetWidth(initialWidth) // Will be updated by WindowSizeMsg
-	ta.SetHeight(1)          // Starts as single line, expands automatically
+	ta.SetHeight(1)           // Starts as single line, expands automatically
 
 	// Define styles for the textarea prompt and text
 	promptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -60,10 +58,8 @@ func NewChatAreaModel(initialWidth, initialHeight int, userNickname string) Chat
 	ta.FocusedStyle.Prompt = promptStyle // Assign the style object
 	ta.BlurredStyle.Prompt = promptStyle // Assign the style object (can be different if desired)
 	ta.ShowLineNumbers = false
-	// ta.Prompt will be set dynamically in View()
 
 	vp := viewport.New(initialWidth, initialHeight-3) // Initial guess for viewport height
-	// vp.Style, inputStyle, viewportStyle will be defined in View() based on current width/height
 
 	return ChatAreaModel{
 		textarea:        ta,
@@ -142,7 +138,7 @@ func (m ChatAreaModel) Update(msg tea.Msg) (ChatAreaModel, tea.Cmd) {
 		}
 	case FocusTextareaMsg:
 		cmds = append(cmds, m.textarea.Focus())
-	// WindowSizeMsg is handled by SetDimensions, called by the main model.
+		// WindowSizeMsg is handled by SetDimensions, called by the main model.
 	}
 
 	return m, tea.Batch(cmds...)
@@ -225,18 +221,16 @@ func (m *ChatAreaModel) View(messagesToDisplay []Message) string {
 	// For simplicity here, let's assume main model handles when to scroll or we always scroll.
 	m.viewport.GotoBottom()
 
-
 	// --- Define styles dynamically based on current dimensions ---
 	// Viewport style: Border on top, left, right. No bottom border as input box provides it.
 	// Padding is applied to the content area of the viewport.
 	currentViewportStyle := lipgloss.NewStyle().
-		Width(m.width). // Outer width for the viewport's styled box
-		Height(m.viewport.Height). // Calculated height for the viewport's styled box
+		Width(m.width).                                           // Outer width for the viewport's styled box
+		Height(m.viewport.Height).                                // Calculated height for the viewport's styled box
 		Border(lipgloss.NormalBorder(), true, true, false, true). // Top, Right, No Bottom, Left
 		PaddingLeft(1).
 		PaddingRight(1)
 	m.viewportStyle = currentViewportStyle
-
 
 	// Input box style
 	// Define the base style properties first (border, padding)
@@ -265,7 +259,6 @@ func (m *ChatAreaModel) View(messagesToDisplay []Message) string {
 	if finalInputBoxHeight < minInputBoxHeight { // Safety, should not happen if SetDimensions is correct
 		finalInputBoxHeight = minInputBoxHeight
 	}
-
 
 	m.inputStyle = baseInputStyle.Copy().
 		Width(m.width).
