@@ -124,11 +124,6 @@ func (m ChatAreaModel) Update(msg tea.Msg) (ChatAreaModel, tea.Cmd) {
 						if prefix != "" && len(prefix) > len(partialPath) {
 							m.textarea.SetValue("/send " + prefix)
 							m.textarea.CursorEnd()
-						} else if len(partialPath) > 0 && !strings.HasSuffix(partialPath, string(filepath.Separator)) {
-							// If trying to complete a file and multiple exist, try adding separator if it's a dir
-							// This is a simple heuristic: if the partial path could be a directory.
-							// More robust would be to check if partialPath is a dir.
-							// For now, let's just complete to common prefix or single match.
 						}
 					}
 				}
