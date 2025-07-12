@@ -122,7 +122,7 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	case "CREATE":
 		if requestedSessionID != "" {
 			// User provided a session ID
-			session, exists = s.sessions[requestedSessionID]
+			_, exists = s.sessions[requestedSessionID]
 			if exists {
 				// Collision: prepend a short unique ID
 				log.Printf("Session ID '%s' already exists. Generating a new one.", requestedSessionID)
