@@ -506,6 +506,7 @@ func (m *Model) helpView() string {
 			"  /send <file_path> - Send a file\n" +
 			"  /help             - Toggle this help message\n" +
 			"  /quit             - Disconnect and exit (Ctrl+C/Esc also works)\n" +
+			"  /fingerprint      - Show your and peer's key fingerprints\n" +
 			"\nKeybindings:\n" +
 			"  Ctrl+C/Esc        - Disconnect and exit\n" +
 			"  Enter             - Send message\n" +
