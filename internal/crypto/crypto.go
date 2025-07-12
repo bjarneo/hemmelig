@@ -14,6 +14,11 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
+const (
+	maxPublicKeySize = 32               // Size of Curve25519 public keys
+	maxMessageSize   = 10 * 1024 * 1024 // 10MB, arbitrary limit for other messages
+)
+
 // Encrypt encrypts plaintext using AES-GCM with the given key.
 func Encrypt(plaintext, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
@@ -64,13 +69,13 @@ func readTLVFromConn(reader *bufio.Reader) (byte, []byte, error) {
 
 	// Safety limit for public key payload
 	if msgType == protocol.TypePublicKeyExchange {
-		if length != 32 {
+		if length != maxPublicKeySize {
 			return 0, nil, fmt.Errorf("readTLV: public key exchange payload must be 32 bytes, got %d", length)
 		}
 	} else {
 		// Generic length check for other types, if this function were to be used more broadly.
 		// For now, it's only used for TypePublicKeyExchange.
-		if length > 10*1024*1024 { // Example: 10MB general limit for other potential uses.
+		if length > maxMessageSize {
 			return 0, nil, fmt.Errorf("readTLV: message length %d too large", length)
 		}
 		if length == 0 && msgType != protocol.TypeFileReject { // TypeFileReject can have 0 length data
