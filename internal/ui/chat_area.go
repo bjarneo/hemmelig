@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath" // Added for filepath.Glob
 	"strings"
 	"time"
@@ -106,6 +107,14 @@ func (m ChatAreaModel) Update(msg tea.Msg) (ChatAreaModel, tea.Cmd) {
 			currentText := m.textarea.Value()
 			if strings.HasPrefix(currentText, "/send ") {
 				partialPath := strings.TrimPrefix(currentText, "/send ")
+
+				// If tilde for home directory is used, expand it
+				if strings.HasPrefix(partialPath, "~") {
+					if homeDir, err := os.UserHomeDir(); err == nil {
+						partialPath = filepath.Join(homeDir, partialPath[1:])
+					}
+				}
+
 				// Add a '*' for globbing if not already present or to expand directory
 				globPath := partialPath
 				if !strings.HasSuffix(globPath, "*") {
