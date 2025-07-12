@@ -244,14 +244,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if text == "/fingerprint" {
 			now := time.Now()
 			if m.MyFingerprint != "" {
-				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("Your Key Fingerprint: %s", m.MyFingerprint)})
 			} else {
-				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Your Key Fingerprint is not yet available."})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Your Key Fingerprint is not yet available."})
 			}
 			if m.PeerFingerprint != "" {
-				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("Peer's Key Fingerprint: %s", m.PeerFingerprint)})
 			} else {
-				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Peer is not connected or their fingerprint is not yet available."})
+				m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Peer is not connected or their fingerprint is not yet available."})
 			}
 		} else {
 			m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: m.Nickname, Content: text})
@@ -363,10 +363,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.MyFingerprint == "" {
 			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Attempting to display fingerprints; your own fingerprint is not yet available."})
 		} else {
-			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Your Key Fingerprint: %s", m.MyFingerprint)})
+			m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("Your Key Fingerprint: %s", m.MyFingerprint)})
 		}
-		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("--- Peer's Key Fingerprint: %s", m.PeerFingerprint)})
-		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "--- Please verify these fingerprints with your peer through a trusted channel."})
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: fmt.Sprintf("Peer's Key Fingerprint: %s", m.PeerFingerprint)})
+		m.Messages = append(m.Messages, Message{Timestamp: now, Sender: "System", Content: "Please verify these fingerprints with your peer through a trusted channel."})
 
 	case ReceivedNicknameMsg:
 		m.PeerNickname = msg.Nickname
