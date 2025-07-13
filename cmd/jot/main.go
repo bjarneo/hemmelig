@@ -14,7 +14,7 @@ func main() {
 	flag.Parse()
 
 	if *relayServerAddr == "" {
-		fmt.Println("Usage: jot -relay-server-addr <address>")
+		fmt.Println("Usage: jot -relay-server <address>")
 		os.Exit(1)
 	}
 
