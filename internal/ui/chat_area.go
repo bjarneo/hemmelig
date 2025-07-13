@@ -21,17 +21,18 @@ type FocusTextareaMsg struct{}
 
 // ChatAreaModel represents the UI model for the chat message display and input area.
 type ChatAreaModel struct {
-	viewport      viewport.Model
-	textarea      textarea.Model
-	width         int
-	height        int // Represents the total height allocated to this component
-	senderStyle   lipgloss.Style
-	viewportStyle lipgloss.Style
-	inputStyle    lipgloss.Style
-
-	messageRenderer *lipgloss.Renderer
-	// Nickname for the "You: " prompt, could be configurable
-	userNickname string
+	viewport          viewport.Model
+	textarea          textarea.Model
+	participantList   viewport.Model
+	width             int
+	height            int // Represents the total height allocated to this component
+	senderStyle       lipgloss.Style
+	viewportStyle     lipgloss.Style
+	inputStyle        lipgloss.Style
+	participantStyle  lipgloss.Style
+	messageRenderer   *lipgloss.Renderer
+	userNickname      string
+	Participants      map[string]string // map[userID]nickname
 }
 
 // Message struct for displaying messages, consistent with how renderMessages expects it.
@@ -61,15 +62,18 @@ func NewChatAreaModel(initialWidth, initialHeight int, userNickname string) Chat
 	ta.ShowLineNumbers = false
 
 	vp := viewport.New(initialWidth, initialHeight-3) // Initial guess for viewport height
+	pl := viewport.New(20, initialHeight-3)            // Initial guess for participant list width and height
 
 	return ChatAreaModel{
 		textarea:        ta,
 		viewport:        vp,
+		participantList: pl,
 		width:           initialWidth,
 		height:          initialHeight, // Total height for this component
 		userNickname:    userNickname,
 		messageRenderer: lipgloss.DefaultRenderer(),
 		senderStyle:     lipgloss.NewStyle().Bold(true), // Example, can be configured
+		Participants:    make(map[string]string),
 	}
 }
 
@@ -205,9 +209,12 @@ func (m *ChatAreaModel) SetDimensions(width, totalAllocatedHeight int) {
 		vpHeight = 0
 	}
 
-	m.viewport.Width = m.width // Viewport uses full component width before its own padding/borders
+	participantListWidth := 20
+	m.viewport.Width = m.width - participantListWidth // Viewport uses full component width before its own padding/borders
 	m.viewport.Height = vpHeight
-	m.textarea.SetWidth(m.width) // Textarea uses full component width before its container's padding/borders
+	m.textarea.SetWidth(m.width - participantListWidth) // Textarea uses full component width before its container's padding/borders
+	m.participantList.Width = participantListWidth
+	m.participantList.Height = vpHeight
 
 	// Styles (viewportStyle, inputStyle) are dynamically sized in View()
 	// So, no need to set their width/height here directly, but m.width/m.height (overall)
@@ -216,69 +223,81 @@ func (m *ChatAreaModel) SetDimensions(width, totalAllocatedHeight int) {
 
 // View renders the chat area (viewport and input).
 // It takes the messages to display as a parameter from the main model.
-func (m *ChatAreaModel) View(messagesToDisplay []Message) string {
+func (m *ChatAreaModel) View(messagesToDisplay []Message, participants map[string]string) string {
 	// Update viewport content
 	renderedMsgs := m.renderMessages(messagesToDisplay)
 	m.viewport.SetContent(renderedMsgs)
-	// Scroll to bottom if content changed, or if explicitly told to.
-	// Main model can manage scroll state or this component can always goto bottom.
-	// For simplicity here, let's assume main model handles when to scroll or we always scroll.
 	m.viewport.GotoBottom()
 
+	// Update participant list content
+	m.participantList.SetContent(m.participantListView(participants))
+	m.participantList.GotoTop()
+
 	// --- Define styles dynamically based on current dimensions ---
-	// Viewport style: Border on top, left, right. No bottom border as input box provides it.
-	// Padding is applied to the content area of the viewport.
-	currentViewportStyle := lipgloss.NewStyle().
-		Width(m.width).                                           // Outer width for the viewport's styled box
-		Height(m.viewport.Height).                                // Calculated height for the viewport's styled box
-		Border(lipgloss.NormalBorder(), true, true, false, true). // Top, Right, No Bottom, Left
+	participantListWidth := 20
+	chatAreaWidth := m.width - participantListWidth
+
+	// Viewport style
+	m.viewportStyle = lipgloss.NewStyle().
+		Width(chatAreaWidth).
+		Height(m.viewport.Height).
+		Border(lipgloss.NormalBorder(), true, false, false, true).
 		PaddingLeft(1).
 		PaddingRight(1)
-	m.viewportStyle = currentViewportStyle
+
+	// Participant list style
+	m.participantStyle = lipgloss.NewStyle().
+		Width(participantListWidth).
+		Height(m.viewport.Height).
+		Border(lipgloss.NormalBorder(), true, true, false, false).
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	// Input box style
-	// Define the base style properties first (border, padding)
 	baseInputStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true). // Full border for input box
-		PaddingLeft(1).                        // Padding for text area within its border
+		Border(lipgloss.NormalBorder(), true).
+		PaddingLeft(1).
 		PaddingRight(1)
-		// PaddingTop(0). // Explicitly 0, or consistent with SetDimensions measurement
-		// PaddingBottom(0).
 
-	// Calculate the required height for the input box container
 	inputBoxChromeHeightView := baseInputStyle.GetVerticalBorderSize() + baseInputStyle.GetVerticalPadding()
 	inputBoxRequiredHeightView := m.textarea.Height() + inputBoxChromeHeightView
-
-	minInputBoxHeight := 1 + inputBoxChromeHeightView // Min 1 line of content
+	minInputBoxHeight := 1 + inputBoxChromeHeightView
 	if inputBoxRequiredHeightView < minInputBoxHeight {
 		inputBoxRequiredHeightView = minInputBoxHeight
 	}
-
-	// Ensure the height doesn't exceed the total allocated height for the chat area (m.height)
-	// and also doesn't exceed the portion of m.height not used by the viewport.
-	// The viewport height (m.viewport.Height) was set by SetDimensions.
-	// So, the input box should take m.height - m.viewport.Height.
-	// This ensures consistency with SetDimensions.
 	finalInputBoxHeight := m.height - m.viewport.Height
-	if finalInputBoxHeight < minInputBoxHeight { // Safety, should not happen if SetDimensions is correct
+	if finalInputBoxHeight < minInputBoxHeight {
 		finalInputBoxHeight = minInputBoxHeight
 	}
-
 	m.inputStyle = baseInputStyle.Copy().
 		Width(m.width).
-		Height(finalInputBoxHeight) // Use the height determined by SetDimensions' allocation
+		Height(finalInputBoxHeight)
 
-	// Update textarea prompt dynamically
+	// Update textarea prompt
 	m.textarea.Prompt = m.userNickname + ": "
-	// The styles for the prompt (FocusedStyle.Prompt, BlurredStyle.Prompt) were set in NewChatAreaModel.
-	// The textarea component will use those styles when rendering its prompt.
 	textareaViewString := m.textarea.View()
 
-	// Combine viewport and input box
-	return lipgloss.JoinVertical(lipgloss.Left,
+	// Combine chat area and participant list
+	chatAndParticipants := lipgloss.JoinHorizontal(
+		lipgloss.Top,
 		m.viewportStyle.Render(m.viewport.View()),
+		m.participantStyle.Render(m.participantList.View()),
+	)
+
+	// Combine with input box
+	return lipgloss.JoinVertical(lipgloss.Left,
+		chatAndParticipants,
 		m.inputStyle.Render(textareaViewString),
 	)
+}
+
+func (m *ChatAreaModel) participantListView(participants map[string]string) string {
+	var builder strings.Builder
+	builder.WriteString("Participants:\n")
+	for _, nickname := range participants {
+		builder.WriteString(fmt.Sprintf("- %s\n", nickname))
+	}
+	return builder.String()
 }
 
 // renderMessages formats and wraps messages for display.

@@ -2,18 +2,18 @@ package filetransfer
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
 
 	"github.com/bjarneo/jot/internal/core"
+	"github.com/bjarneo/jot/internal/crypto"
 	"github.com/bjarneo/jot/internal/network"
 	"github.com/bjarneo/jot/internal/protocol"
 )
 
 // RequestSendFile initiates a file transfer by sending a file offer.
-func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender, maxFileSize int64) {
+func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender, maxFileSize int64, recipientID string) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		sender.SendError(fmt.Errorf("could not open file: %w", err))
@@ -39,13 +39,25 @@ func RequestSendFile(conn net.Conn, sharedKey []byte, filePath string, sender co
 		return
 	}
 
-	if err := network.SendData(conn, sharedKey, protocol.TypeFileOffer, metaBytes); err != nil {
+	encryptedMeta, err := crypto.Encrypt(metaBytes, sharedKey)
+	if err != nil {
+		sender.SendError(fmt.Errorf("could not encrypt metadata: %w", err))
+		return
+	}
+
+	msg := map[string]interface{}{
+		"type":       "file_offer",
+		"recipient":  recipientID,
+		"metadata":   encryptedMeta,
+	}
+
+	if err := network.SendData(conn, msg); err != nil {
 		sender.SendError(fmt.Errorf("could not send file offer: %w", err))
 	}
 }
 
 // SendFileChunks sends file content in chunks over the connection.
-func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender) {
+func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender core.MessageSender, recipientID string) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		sender.SendError(fmt.Errorf("could not open file for streaming: %w", err))
@@ -68,7 +80,19 @@ func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender cor
 		}
 
 		chunk := buffer[:bytesRead]
-		if err := network.SendData(conn, sharedKey, protocol.TypeFileChunk, chunk); err != nil {
+		encryptedChunk, err := crypto.Encrypt(chunk, sharedKey)
+		if err != nil {
+			sender.SendError(fmt.Errorf("could not encrypt chunk: %w", err))
+			return
+		}
+
+		msg := map[string]interface{}{
+			"type":       "file_chunk",
+			"recipient":  recipientID,
+			"chunk":      encryptedChunk,
+		}
+
+		if err := network.SendData(conn, msg); err != nil {
 			sender.SendError(fmt.Errorf("could not send file chunk: %w", err))
 			return
 		}
@@ -77,7 +101,11 @@ func SendFileChunks(conn net.Conn, sharedKey []byte, filePath string, sender cor
 		sender.SendProgress(float64(totalBytesSent) / float64(fileInfo.Size()))
 	}
 
-	if err := network.SendData(conn, sharedKey, protocol.TypeFileDone, nil); err != nil {
+	msg := map[string]interface{}{
+		"type":      "file_done",
+		"recipient": recipientID,
+	}
+	if err := network.SendData(conn, msg); err != nil {
 		sender.SendError(fmt.Errorf("could not send file done message: %w", err))
 		return
 	}

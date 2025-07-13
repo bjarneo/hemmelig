@@ -3,28 +3,57 @@ package ui
 import (
 	"net"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/bjarneo/jot/internal/protocol"
 )
 
-// --- Bubbletea Messages ---
+// --- Generic Messages ---
 
-type (
-	ConnectionMsg          struct{ Conn net.Conn }
-	SharedKeyMsg           struct{ Key []byte }
-	ReceivedNicknameMsg    struct{ Nickname string }
-	ReceivedTextMsg        struct{ Text string }
-	FileOfferMsg           struct{ Metadata protocol.FileMetadata }
-	FileOfferAcceptedMsg   struct{ Metadata protocol.FileMetadata } // Sent from receiver to sender
-	FileOfferRejectedMsg   struct{}
-	FileOfferFailedMsg     struct{ Reason string }
-	FileSendingCompleteMsg struct{}
-	FileChunkMsg           struct{ Chunk []byte }
-	FileDoneMsg            struct{}
-	ProgressMsg            progress.FrameMsg
-	FileTransferProgress   float64
-	MyPublicKeyMsg         struct{ PublicKey []byte }
-	PeerPublicKeyMsg       struct{ PublicKey []byte }
-	ConnectionClosedMsg    struct{}
-	ErrorMsg               struct{ Err error }
-)
+type ErrorMsg struct{ Err error }
+type ConnectionClosedMsg struct{}
+
+// --- UI Interaction Messages ---
+
+type FocusTextareaMsg struct{}
+type SubmitInputMsg struct{ Content string }
+
+// --- Network/Connection Related Messages ---
+
+type ConnectionMsg struct{ Conn net.Conn }
+
+type UserJoinedMsg struct {
+	UserID    string
+	Nickname  string
+	PublicKey []byte
+}
+
+type UserLeftMsg struct {
+	UserID string
+}
+
+type PublicKeyMsg struct {
+	UserID    string
+	Nickname  string
+	PublicKey []byte
+}
+
+type ReceivedTextMsg struct {
+	SenderID   string
+	Ciphertext []byte
+}
+
+// --- File Transfer Messages ---
+
+type FileOfferMsg struct {
+	Metadata protocol.FileMetadata
+	SenderID string
+}
+type FileOfferAcceptedMsg struct {
+	Metadata protocol.FileMetadata
+	SenderID string
+}
+type FileOfferRejectedMsg struct{ SenderID string }
+type FileOfferFailedMsg struct{ Reason string }
+type FileSendingCompleteMsg struct{}
+type FileChunkMsg struct{ Chunk []byte }
+type FileDoneMsg struct{}
+type FileTransferProgress float64

@@ -10,6 +10,8 @@ import (
 	"github.com/bjarneo/jot/internal/util"
 )
 
+import "github.com/bjarneo/jot/internal/crypto"
+
 type InitialModel struct {
 	program         *tea.Program
 	relayServerAddr string
@@ -19,6 +21,7 @@ type InitialModel struct {
 	nicknameInput   textinput.Model
 	state           initialState
 	err             error
+	privateKey      []byte
 }
 
 type initialState int
@@ -35,12 +38,18 @@ func NewInitialModel(relayServerAddr string, maxFileSize int) *InitialModel {
 	nicknameInput := textinput.New()
 	nicknameInput.Placeholder = "Your Nickname"
 
+	privateKey, err := crypto.GenerateKeyPair()
+	if err != nil {
+		log.Fatal("could not generate key pair:", err)
+	}
+
 	m := &InitialModel{
 		relayServerAddr: relayServerAddr,
 		maxFileSize:     maxFileSize,
 		sessionIDInput:  sessionIDInput,
 		nicknameInput:   nicknameInput,
 		state:           chooseCreateOrJoin,
+		privateKey:      privateKey[:],
 	}
 	// Initial focus depends on the first state, which is chooseCreateOrJoin, so no input is focused yet.
 	return m
@@ -77,7 +86,11 @@ func (m *InitialModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sessionID := strings.TrimSpace(m.sessionIDInput.Value())
 				command := m.choice
 
-				mainModel := NewModel(m.relayServerAddr, sessionID, nickname, command, int64(m.maxFileSize))
+				publicKey, err := crypto.ComputeSharedSecret(m.privateKey, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+				if err != nil {
+					log.Fatal("could not compute public key:", err)
+				}
+				mainModel := NewModel(m.relayServerAddr, sessionID, nickname, command, int64(m.maxFileSize), m.privateKey, publicKey)
 				mainModel.Program = m.program
 				return mainModel, mainModel.Init()
 			}

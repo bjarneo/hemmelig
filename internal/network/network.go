@@ -15,33 +15,12 @@ import (
 )
 
 // ListenForMessages reads and processes incoming messages from the connection.
-func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isInitiator bool) {
+func ListenForMessages(conn net.Conn, sender core.MessageSender) {
 	reader := bufio.NewReader(conn)
 
-	// Perform key exchange if key is not provided (first message from peer)
-	var sharedKey []byte
-	var myPublicKey []byte
-	var peerPublicKey []byte
-	var err error
-
-	if key == nil {
-		sharedKey, myPublicKey, peerPublicKey, err = crypto.PerformKeyExchange(conn, isInitiator)
-		if err != nil {
-			sender.SendError(err)
-			return
-		}
-		sender.SendSharedKey(sharedKey)
-		sender.SendMyPublicKey(myPublicKey)
-		sender.SendPeerPublicKey(peerPublicKey)
-	} else {
-		sharedKey = key
-	}
-
 	for {
-		msgType, err := reader.ReadByte()
+		messageBytes, err := reader.ReadBytes('\n')
 		if err != nil {
-			// If we get an EOF, it means the connection was closed.
-			// This could be the server terminating an inactive session.
 			if err == io.EOF {
 				sender.SendConnectionClosed()
 			} else {
@@ -50,82 +29,58 @@ func ListenForMessages(conn net.Conn, key []byte, sender core.MessageSender, isI
 			return
 		}
 
-		var length uint32
-		if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
-			sender.SendError(fmt.Errorf("failed to read length: %w", err))
-			return
-		}
-
-		encryptedMsg := make([]byte, length)
-		if _, err := io.ReadFull(reader, encryptedMsg); err != nil {
-			sender.SendError(fmt.Errorf("failed to read message body: %w", err))
-			return
-		}
-
-		decrypted, err := crypto.Decrypt(encryptedMsg, sharedKey)
-		if err != nil {
-			sender.SendError(fmt.Errorf("decryption failed: %w", err))
+		var msg map[string]interface{}
+		if err := json.Unmarshal(messageBytes, &msg); err != nil {
+			sender.SendError(fmt.Errorf("failed to unmarshal message: %w", err))
 			continue
 		}
 
-		switch msgType {
-		case protocol.TypeNickname:
-			sender.SendReceivedNickname(string(decrypted))
-
-		case protocol.TypeText:
-			sender.SendReceivedText(string(decrypted))
-		case protocol.TypeFileOffer:
+		switch msg["type"] {
+		case "user_joined":
+			sender.SendUserJoined(msg["userID"].(string), msg["nickname"].(string), []byte(msg["publicKey"].(string)))
+		case "user_left":
+			sender.SendUserLeft(msg["userID"].(string))
+		case "public_key":
+			sender.SendPublicKey(msg["userID"].(string), msg["nickname"].(string), []byte(msg["publicKey"].(string)))
+		case "message":
+			senderID := msg["sender"].(string)
+			ciphertext := []byte(msg["ciphertext"].(string))
+			sender.SendReceivedText(senderID, ciphertext)
+		case "file_offer":
+			senderID := msg["sender"].(string)
 			var meta protocol.FileMetadata
-			if err := json.Unmarshal(decrypted, &meta); err != nil {
+			if err := json.Unmarshal([]byte(msg["metadata"].(string)), &meta); err != nil {
 				sender.SendError(fmt.Errorf("failed to decode file offer: %w", err))
 				continue
 			}
-			sender.SendFileOffer(meta)
-		case protocol.TypeFileAccept:
+			sender.SendFileOffer(meta, senderID)
+		case "file_accept":
 			var meta protocol.FileMetadata
-			if err := json.Unmarshal(decrypted, &meta); err != nil {
+			if err := json.Unmarshal([]byte(msg["metadata"].(string)), &meta); err != nil {
 				sender.SendError(fmt.Errorf("failed to decode file acceptance: %w", err))
 				continue
 			}
 			sender.SendFileOfferAccepted(meta)
-		case protocol.TypeFileReject:
-			sender.SendFileOfferRejected()
-		case protocol.TypeFileChunk:
-			sender.SendFileChunk(decrypted)
-		case protocol.TypeFileDone:
+		case "file_reject":
+			senderID := msg["sender"].(string)
+			sender.SendFileOfferRejected(senderID)
+		case "file_chunk":
+			sender.SendFileChunk([]byte(msg["chunk"].(string)))
+		case "file_done":
 			sender.SendFileDone()
 		default:
-			sender.SendError(fmt.Errorf("received unknown message type: %d", msgType))
+			sender.SendError(fmt.Errorf("received unknown message type: %s", msg["type"]))
 		}
 	}
 }
 
-// SendData encrypts and sends data over the connection.
-// For TypePublicKeyExchange, data is sent unencrypted.
-func SendData(conn net.Conn, sharedKey []byte, msgType byte, data []byte) error {
-	var payloadToSend []byte
-	var err error
-
-	if msgType == protocol.TypePublicKeyExchange {
-		payloadToSend = data // Send raw public key for exchange
-	} else {
-		if sharedKey == nil {
-			// This check is important. If sharedKey is nil for other types, it's an error.
-			return errors.New("shared key is nil, cannot encrypt non-PublicKeyExchange message")
-		}
-		payloadToSend, err = crypto.Encrypt(data, sharedKey)
-		if err != nil {
-			return fmt.Errorf("encryption failed: %w", err)
-		}
+// SendData sends a JSON message over the connection.
+func SendData(conn net.Conn, data interface{}) error {
+	msgBytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	// Prepend msgType and length
-	msgHeader := make([]byte, 1+4) // 1 byte for type, 4 bytes for length
-	msgHeader[0] = msgType
-	binary.BigEndian.PutUint32(msgHeader[1:], uint32(len(payloadToSend)))
-
-	fullMsg := append(msgHeader, payloadToSend...)
-
-	_, err = conn.Write(fullMsg)
+	_, err = conn.Write(append(msgBytes, '\n'))
 	return err
 }
