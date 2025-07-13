@@ -13,8 +13,6 @@ This project is the official Terminal User Interface (TUI) for Jot, created by t
 
 Jot is derived from Jötunvillur, a cipher rune set from Norse mythology. It is pronounced "yot".
 
-While they share a name, the security model of this TUI is fundamentally different and designed for live, interactive chat. Unlike the web version, which is built for stateless, one-time secret sharing, this application creates a persistent, end-to-end encrypted session between two users.
-
 The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH)** key exchange over Curve25519. This ensures that all communication, including messages and file transfers, is protected with perfect forward secrecy for the duration of the session. The relay server facilitates the connection but is never able to decrypt the contents of the conversation.
 
 <img width="762" height="501" alt="Screenshot from 2025-07-11 20-59-15" src="https://github.com/user-attachments/assets/dd5a13ed-74ab-485d-9b1a-b19baa302944" />
@@ -27,6 +25,8 @@ The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH
 - **Terminal User Interface (TUI):** A responsive and user-friendly terminal UI that adapts to your window size.
 - **Tab Completion:** Basic tab completion for file paths when using the `/send` command.
 - **Trust On First Use (TOFU):** Verify peer identity through public key fingerprints.
+- **Anonymous**: No user accounts or personal information required. Just run the client and start chatting.
+- **Key pair generation**: Each session generates a new public/private key pair, ensuring that even if a session is compromised, past sessions remain secure.
 
 ## Installation
 
@@ -84,7 +84,6 @@ Open a new terminal to start the client. You will be prompted to create or join 
 The client can be customized with the following flags:
 
 - `-relay-server <address>`: Specifies the address of the relay server (e.g., `localhost:8080`).
-- `-session-id <id>`: Immediately joins a session with the given ID without prompting.
 
 ## Security Features
 
@@ -130,6 +129,8 @@ sequenceDiagram
 ## Trust On First Use (TOFU)
 
 **TOFU** is a security model where the first time you connect to a peer, you save their public key fingerprint. On all future connections, the client will verify that the fingerprint matches.
+
+Important note: Jot creates new public/private key pairs for each session. This means that the fingerprint will change every time you start a new session.
 
 In Jot, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
 
