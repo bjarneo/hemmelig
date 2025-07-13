@@ -93,9 +93,9 @@ type InfoMsg struct {
 	Info string
 }
 
-// Model represents the Bubble Tea UI model.
 import "github.com/bjarneo/jot/internal/crypto"
 
+// Model represents the Bubble Tea UI model.
 type Model struct {
 	RelayServerAddr string
 	SessionID       string
@@ -120,6 +120,7 @@ type Model struct {
 	IsReceiving          bool
 	IsAwaitingAcceptance bool
 	PendingOffer         protocol.FileMetadata
+	FileOfferSenderID    string
 	ReceivingFile        *os.File
 	TotalBytesReceived   int64
 	ShowHelp             bool
@@ -312,12 +313,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					switch msg.Runes[0] {
 					case 'y', 'Y':
 						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Accepting file transfer..."})
-						sharedKey := m.sharedSecrets[m.PendingOffer.SenderID]
+						sharedKey := m.sharedSecrets[m.FileOfferSenderID]
 						metaBytes, _ := m.PendingOffer.ToJSON()
 						encryptedMeta, _ := crypto.Encrypt(metaBytes, sharedKey)
 						msg := map[string]interface{}{
 							"type":      "file_accept",
-							"recipient": m.PendingOffer.SenderID,
+							"recipient": m.FileOfferSenderID,
 							"metadata":  encryptedMeta,
 						}
 						network.SendData(m.Conn, msg)
@@ -336,7 +337,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: "Rejected file transfer."})
 						msg := map[string]interface{}{
 							"type":      "file_reject",
-							"recipient": m.PendingOffer.SenderID,
+							"recipient": m.FileOfferSenderID,
 						}
 						network.SendData(m.Conn, msg)
 						m.PendingOffer = protocol.FileMetadata{}
@@ -364,7 +365,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case UserJoinedMsg:
 		m.Participants[msg.UserID] = msg.Nickname
 		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("%s has joined the chat.", msg.Nickname)})
-		sharedSecret, err := crypto.ComputeSharedSecret(m.privateKey, msg.PublicKey)
+		var privateKey, publicKey [32]byte
+		copy(privateKey[:], m.privateKey)
+		copy(publicKey[:], msg.PublicKey)
+		sharedSecret, err := crypto.ComputeSharedSecret(privateKey, publicKey)
 		if err != nil {
 			m.Err = err
 			return m, tea.Quit
@@ -382,7 +386,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PublicKeyMsg:
 		m.Participants[msg.UserID] = msg.Nickname
-		sharedSecret, err := crypto.ComputeSharedSecret(m.privateKey, msg.PublicKey)
+		var privateKey, publicKey [32]byte
+		copy(privateKey[:], m.privateKey)
+		copy(publicKey[:], msg.PublicKey)
+		sharedSecret, err := crypto.ComputeSharedSecret(privateKey, publicKey)
 		if err != nil {
 			m.Err = err
 			return m, tea.Quit
@@ -407,6 +414,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileOfferMsg:
 		m.PendingOffer = msg.Metadata
+		m.FileOfferSenderID = msg.SenderID
 		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("Peer wants to send you a file: %s (%.2f MB). Accept? (y/n)", msg.Metadata.FileName, float64(msg.Metadata.FileSize)/1024/1024)})
 		m.Status = fmt.Sprintf("TRANSFERRING: Receiving file offer for %s", msg.Metadata.FileName)
 

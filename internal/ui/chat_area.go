@@ -13,11 +13,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// SubmitInputMsg is a tea.Msg that signals text was submitted from the textarea.
-type SubmitInputMsg struct{ Content string }
-
-// FocusTextareaMsg is a tea.Msg to command the ChatAreaModel to focus its textarea.
-type FocusTextareaMsg struct{}
 
 // ChatAreaModel represents the UI model for the chat message display and input area.
 type ChatAreaModel struct {

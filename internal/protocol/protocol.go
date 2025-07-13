@@ -20,6 +20,7 @@ type FileMetadata struct {
 	FileName     string `json:"fileName"`
 	FileSize     int64  `json:"fileSize"`
 	OriginalPath string `json:"originalPath,omitempty"` // Used by the sender to know which file to stream
+	SenderID     string `json:"senderID,omitempty"`
 }
 
 // ToJSON marshals the FileMetadata to JSON.

@@ -86,7 +86,10 @@ func (m *InitialModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sessionID := strings.TrimSpace(m.sessionIDInput.Value())
 				command := m.choice
 
-				publicKey, err := crypto.ComputeSharedSecret(m.privateKey, []byte{9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+				var privateKey, basePoint [32]byte
+				copy(privateKey[:], m.privateKey)
+				basePoint[0] = 9
+				publicKey, err := crypto.ComputeSharedSecret(privateKey, basePoint)
 				if err != nil {
 					log.Fatal("could not compute public key:", err)
 				}
