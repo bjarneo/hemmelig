@@ -30,14 +30,14 @@ The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH
 
 ## Installation
 
-You can install the `jot` client by downloading a pre-compiled binary from the [GitHub Releases page](https://github.com/dothash/jot/releases) or by using the installation script below.
+You can install the `jot` client by downloading a pre-compiled binary from the [GitHub Releases page](https://github.com/bjarneo/jot/releases) or by using the installation script below.
 
 ### Install Script (Linux & macOS)
 
 This script will automatically detect your OS and architecture, download the latest binary, verify its checksum, and install it to `$HOME/.local/bin`.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/bjarneo/jot/main/install.sh | sh
 ```
 
 After installation, you may need to add the installation directory to your shell's `PATH`.
