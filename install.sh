@@ -93,7 +93,7 @@ main() {
   if [ -f "$INSTALL_PATH" ]; then
     # Use printf for a formatted warning and prompt on the same line.
     printf "\033[33m[WARN]\033[0m 'hemmelig' is already installed at %s. Do you want to replace it? [y/N] " "$INSTALL_PATH"
-    read -r response
+    read -r response </dev/tty
     echo # Add a newline for cleaner output after user input.
 
     case "$response" in
