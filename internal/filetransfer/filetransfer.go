@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/bjarneo/jot/internal/core"
+	"io"
+
 	"github.com/bjarneo/jot/internal/crypto"
 	"github.com/bjarneo/jot/internal/network"
 	"github.com/bjarneo/jot/internal/protocol"

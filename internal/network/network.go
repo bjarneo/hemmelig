@@ -2,15 +2,12 @@ package network
 
 import (
 	"bufio"
-	"encoding/binary"
 	"encoding/json"
-	"errors" // Added missing import
 	"fmt"
 	"io"
 	"net"
 
 	"github.com/bjarneo/jot/internal/core"
-	"github.com/bjarneo/jot/internal/crypto"
 	"github.com/bjarneo/jot/internal/protocol"
 )
 

@@ -21,9 +21,7 @@ func GenerateKeyPair() (x25519.Key, error) {
 // ComputeSharedSecret computes the shared secret between a private key and a public key.
 func ComputeSharedSecret(privateKey, publicKey x25519.Key) ([]byte, error) {
 	var sharedKey x25519.Key
-	if err := x25519.ScalarMult(&sharedKey, &privateKey, &publicKey); err != nil {
-		return nil, err
-	}
+	x25519.Shared(&sharedKey, &privateKey, &publicKey)
 	return sharedKey[:], nil
 }
 
