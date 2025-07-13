@@ -86,10 +86,33 @@ main() {
   fi
   echo_info "Checksum verified successfully."
 
+  # Define the full installation path
+  INSTALL_PATH="$INSTALL_DIR/hemmelig"
+
+  # Check if the binary already exists and prompt the user for replacement.
+  if [ -f "$INSTALL_PATH" ]; then
+    # Use printf for a formatted warning and prompt on the same line.
+    printf "\033[33m[WARN]\033[0m 'hemmelig' is already installed at %s. Do you want to replace it? [y/N] " "$INSTALL_PATH"
+    read -r response
+    echo # Add a newline for cleaner output after user input.
+
+    case "$response" in
+    [yY][eE][sS] | [yY])
+      # If 'yes' or 'y', proceed with the installation.
+      echo_info "Replacing existing binary..."
+      ;;
+    *)
+      # For any other input, abort the installation.
+      echo_info "Installation aborted by user."
+      exit 0
+      ;;
+    esac
+  fi
+
   echo_info "Installing hemmelig to ${INSTALL_DIR}..."
   mkdir -p "$INSTALL_DIR"
   chmod +x "$TMP_DIR/$BINARY_NAME"
-  mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_DIR/hemmelig"
+  mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_PATH"
 
   echo_info "Installation complete!"
   echo_info "Please ensure '${INSTALL_DIR}' is in your shell's PATH."
