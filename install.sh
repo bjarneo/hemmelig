@@ -1,17 +1,17 @@
 #!/bin/sh
 #
-# This script downloads and installs the latest hemmelig client for your system.
+# This script downloads and installs the latest jot client for your system.
 # It attempts to install to $HOME/.local/bin, a common user-specific bin directory.
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/bjarneo/hemmelig/main/install.sh | sh
+#   curl -sSL https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
 #   or
-#   wget -qO- https://raw.githubusercontent.com/bjarneo/hemmelig/main/install.sh | sh
+#   wget -qO- https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # --- Configuration ---
-REPO="bjarneo/hemmelig"
+REPO="dothash/jot"
 INSTALL_DIR="$HOME/.local/bin"
 
 # --- Helper Functions ---
@@ -65,7 +65,7 @@ main() {
   echo_info "Latest release is ${LATEST_TAG}"
 
   # Construct asset names and download URLs
-  BINARY_NAME="hemmelig-${OS}-${ARCH}"
+  BINARY_NAME="jot-${OS}-${ARCH}"
   CHECKSUMS_FILE="checksums.txt"
   BASE_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}"
   BINARY_URL="${BASE_URL}/${BINARY_NAME}"
@@ -87,12 +87,12 @@ main() {
   echo_info "Checksum verified successfully."
 
   # Define the full installation path
-  INSTALL_PATH="$INSTALL_DIR/hemmelig"
+  INSTALL_PATH="$INSTALL_DIR/jot"
 
   # Check if the binary already exists and prompt the user for replacement.
   if [ -f "$INSTALL_PATH" ]; then
     # Use printf for a formatted warning and prompt on the same line.
-    printf "\033[33m[WARN]\033[0m 'hemmelig' is already installed at %s. Do you want to replace it? [y/N] " "$INSTALL_PATH"
+    printf "\033[33m[WARN]\033[0m 'jot' is already installed at %s. Do you want to replace it? [y/N] " "$INSTALL_PATH"
     read -r response </dev/tty
     echo # Add a newline for cleaner output after user input.
 
@@ -109,7 +109,7 @@ main() {
     esac
   fi
 
-  echo_info "Installing hemmelig to ${INSTALL_DIR}..."
+  echo_info "Installing jot to ${INSTALL_DIR}..."
   mkdir -p "$INSTALL_DIR"
   chmod +x "$TMP_DIR/$BINARY_NAME"
   mv "$TMP_DIR/$BINARY_NAME" "$INSTALL_PATH"

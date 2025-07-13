@@ -16,9 +16,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/dothash/hemmelig-cli/internal/filetransfer"
-	"github.com/dothash/hemmelig-cli/internal/network"
-	"github.com/dothash/hemmelig-cli/internal/protocol"
+	"github.com/dothash/jot/internal/filetransfer"
+	"github.com/dothash/jot/internal/network"
+	"github.com/dothash/jot/internal/protocol"
 )
 
 type programMessageSender struct {

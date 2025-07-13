@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dothash/hemmelig-cli/internal/core"
-	"github.com/dothash/hemmelig-cli/internal/network"
-	"github.com/dothash/hemmelig-cli/internal/protocol"
+	"github.com/dothash/jot/internal/core"
+	"github.com/dothash/jot/internal/network"
+	"github.com/dothash/jot/internal/protocol"
 )
 
 // RequestSendFile initiates a file transfer by sending a file offer.

@@ -1,4 +1,4 @@
-module github.com/dothash/hemmelig-cli
+module github.com/dothash/jot
 
 go 1.24.4
 

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dothash/hemmelig-cli/internal/protocol" // Added for protocol.TypePublicKeyExchange
+	"github.com/dothash/jot/internal/protocol" // Added for protocol.TypePublicKeyExchange
 	"golang.org/x/crypto/curve25519"
 )
 

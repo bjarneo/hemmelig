@@ -1,4 +1,4 @@
-name: Release Hemmelig Client
+name: Release Jot Client
 
 on:
   release:
@@ -24,36 +24,36 @@ jobs:
         run: echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
 
       - name: Build for Linux (amd64)
-        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-linux-amd64 ./cmd/hemmelig
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o jot-linux-amd64 ./cmd/jot
       
       - name: Build for Linux (386)
-        run: GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o hemmelig-linux-386 ./cmd/hemmelig
+        run: GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o jot-linux-386 ./cmd/jot
 
       - name: Build for macOS (amd64)
-        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-darwin-amd64 ./cmd/hemmelig
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o jot-darwin-amd64 ./cmd/jot
 
       - name: Build for macOS (arm64)
-        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o hemmelig-darwin-arm64 ./cmd/hemmelig
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o jot-darwin-arm64 ./cmd/jot
 
       - name: Build for Windows (amd64)
-        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o hemmelig-windows-amd64.exe ./cmd/hemmelig
+        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o jot-windows-amd64.exe ./cmd/jot
 
       - name: Generate SHA256 checksums
         run: |
-          sha256sum hemmelig-linux-amd64 > hemmelig-linux-amd64.sha256
-          sha256sum hemmelig-linux-386 > hemmelig-linux-386.sha256
-          sha256sum hemmelig-darwin-amd64 > hemmelig-darwin-amd64.sha256
-          sha256sum hemmelig-darwin-arm64 > hemmelig-darwin-arm64.sha256
-          sha256sum hemmelig-windows-amd64.exe > hemmelig-windows-amd64.sha256
+          sha256sum jot-linux-amd64 > jot-linux-amd64.sha256
+          sha256sum jot-linux-386 > jot-linux-386.sha256
+          sha256sum jot-darwin-amd64 > jot-darwin-amd64.sha256
+          sha256sum jot-darwin-arm64 > jot-darwin-arm64.sha256
+          sha256sum jot-windows-amd64.exe > jot-windows-amd64.sha256
           cat *.sha256 > checksums.txt
 
       - name: Upload artifacts to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            hemmelig-linux-amd64
-            hemmelig-linux-386
-            hemmelig-darwin-amd64
-            hemmelig-darwin-arm64
-            hemmelig-windows-amd64.exe
+            jot-linux-amd64
+            jot-linux-386
+            jot-darwin-amd64
+            jot-darwin-arm64
+            jot-windows-amd64.exe
             checksums.txt

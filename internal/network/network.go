@@ -9,9 +9,9 @@ import (
 	"io"
 	"net"
 
-	"github.com/dothash/hemmelig-cli/internal/core"
-	"github.com/dothash/hemmelig-cli/internal/crypto"
-	"github.com/dothash/hemmelig-cli/internal/protocol"
+	"github.com/dothash/jot/internal/core"
+	"github.com/dothash/jot/internal/crypto"
+	"github.com/dothash/jot/internal/protocol"
 )
 
 // ListenForMessages reads and processes incoming messages from the connection.

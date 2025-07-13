@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/dothash/hemmelig-cli/internal/util"
+	"github.com/dothash/jot/internal/util"
 )
 
 type InitialModel struct {

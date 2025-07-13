@@ -4,7 +4,7 @@ import (
 	"net"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/dothash/hemmelig-cli/internal/protocol"
+	"github.com/dothash/jot/internal/protocol"
 )
 
 // --- Bubbletea Messages ---

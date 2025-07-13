@@ -1,13 +1,17 @@
 <p align="center">
-  <img src="logo.png" alt="Hemmelig Logo" width="200"/>
+  <img src="logo.png" alt="Jot Logo" width="200"/>
 </p>
 
-# Hemmelig: A Secure TUI Chat Application
+# Jot: A Secure TUI Chat Application
 
 > ⚠️ Security Warning  
 > The private message and file features are experimental and have not been externally audited for security. They should be considered a work in progress and may contain vulnerabilities.
 
-This project is the official Terminal User Interface (TUI) for Hemmelig, created by the original author of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app).
+This project is the official Terminal User Interface (TUI) for Jot, created by the original author of [Hemmelig.app](https://github.com/HemmeligOrg/Hemmelig.app).
+
+## What does Jot mean?
+
+Jot is derived from Jötunvillur, a cipher rune set from Norse mythology. It is pronounced "yot".
 
 While they share a name, the security model of this TUI is fundamentally different and designed for live, interactive chat. Unlike the web version, which is built for stateless, one-time secret sharing, this application creates a persistent, end-to-end encrypted session between two users.
 
@@ -26,14 +30,14 @@ The secure session is established using an **Elliptic-Curve Diffie-Hellman (ECDH
 
 ## Installation
 
-You can install the `hemmelig` client by downloading a pre-compiled binary from the [GitHub Releases page](https://github.com/bjarneo/hemmelig/releases) or by using the installation script below.
+You can install the `jot` client by downloading a pre-compiled binary from the [GitHub Releases page](https://github.com/dothash/jot/releases) or by using the installation script below.
 
 ### Install Script (Linux & macOS)
 
 This script will automatically detect your OS and architecture, download the latest binary, verify its checksum, and install it to `$HOME/.local/bin`.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/bjarneo/hemmelig/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
 ```
 
 After installation, you may need to add the installation directory to your shell's `PATH`.
@@ -53,7 +57,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Ensure you have Go installed. Navigate to the project root directory and run:
 
 ```bash
-go build -o hemmelig ./cmd/hemmelig
+go build -o jot ./cmd/jot
 go build -o relay-server ./cmd/relay-server
 ```
 
@@ -69,12 +73,12 @@ You can customize the server's behavior with the following flag:
 
 - `-max-data-relayed <MB>`: Sets the maximum amount of data (in MB) a single session can relay before being terminated. Defaults to 50MB.
 
-### 3. Start the Hemmelig Client
+### 3. Start the Jot Client
 
 Open a new terminal to start the client. You will be prompted to create or join a session.
 
 ```bash
-./hemmelig
+./jot
 ```
 
 The client can be customized with the following flags:
@@ -127,7 +131,7 @@ sequenceDiagram
 
 **TOFU** is a security model where the first time you connect to a peer, you save their public key fingerprint. On all future connections, the client will verify that the fingerprint matches.
 
-In Hemmelig, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
+In Jot, after the key exchange, the client displays the peer's fingerprint. It is crucial for you to **manually verify this fingerprint** with your peer through a trusted out-of-band channel (e.g., a phone call). This ensures your connection is secure and not being intercepted by a Man-in-the-Middle (MitM) attack.
 
 ## Disclaimer
 
