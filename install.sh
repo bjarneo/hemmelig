@@ -4,14 +4,14 @@
 # It attempts to install to $HOME/.local/bin, a common user-specific bin directory.
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
+#   curl -sSL https://raw.githubusercontent.com/bjarneo/jot/main/install.sh | sh
 #   or
-#   wget -qO- https://raw.githubusercontent.com/dothash/jot/main/install.sh | sh
+#   wget -qO- https://raw.githubusercontent.com/bjarneo/jot/main/install.sh | sh
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # --- Configuration ---
-REPO="dothash/jot"
+REPO="bjarneo/jot"
 INSTALL_DIR="$HOME/.local/bin"
 
 # --- Helper Functions ---

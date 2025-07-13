@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dothash/jot/internal/ui"
+	"github.com/bjarneo/jot/internal/ui"
 )
 
 func main() {

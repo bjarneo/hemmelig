@@ -9,9 +9,9 @@ import (
 	"io"
 	"net"
 
-	"github.com/dothash/jot/internal/core"
-	"github.com/dothash/jot/internal/crypto"
-	"github.com/dothash/jot/internal/protocol"
+	"github.com/bjarneo/jot/internal/core"
+	"github.com/bjarneo/jot/internal/crypto"
+	"github.com/bjarneo/jot/internal/protocol"
 )
 
 // ListenForMessages reads and processes incoming messages from the connection.

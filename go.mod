@@ -1,4 +1,4 @@
-module github.com/dothash/jot
+module github.com/bjarneo/jot
 
 go 1.24.4
 

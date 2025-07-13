@@ -3,7 +3,7 @@ package core
 import (
 	"net"
 
-	"github.com/dothash/jot/internal/protocol"
+	"github.com/bjarneo/jot/internal/protocol"
 )
 
 // MessageSender defines the interface for sending messages to the UI.

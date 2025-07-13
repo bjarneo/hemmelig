@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dothash/jot/internal/core"
-	"github.com/dothash/jot/internal/network"
-	"github.com/dothash/jot/internal/protocol"
+	"github.com/bjarneo/jot/internal/core"
+	"github.com/bjarneo/jot/internal/network"
+	"github.com/bjarneo/jot/internal/protocol"
 )
 
 // RequestSendFile initiates a file transfer by sending a file offer.

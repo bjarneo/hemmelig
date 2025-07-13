@@ -16,9 +16,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/dothash/jot/internal/filetransfer"
-	"github.com/dothash/jot/internal/network"
-	"github.com/dothash/jot/internal/protocol"
+	"github.com/bjarneo/jot/internal/filetransfer"
+	"github.com/bjarneo/jot/internal/network"
+	"github.com/bjarneo/jot/internal/protocol"
 )
 
 type programMessageSender struct {

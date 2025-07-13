@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/dothash/jot/internal/util"
+	"github.com/bjarneo/jot/internal/util"
 )
 
 type InitialModel struct {
