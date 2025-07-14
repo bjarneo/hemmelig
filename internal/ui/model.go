@@ -193,26 +193,33 @@ func (m *Model) Init() tea.Cmd {
 		}
 
 		reader := bufio.NewReader(conn)
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			return ErrorMsg{Err: fmt.Errorf("failed to read response from relay server: %w", err)}
-		}
+		for {
+			response, err := reader.ReadString('\n')
+			if err != nil {
+				return ErrorMsg{Err: fmt.Errorf("failed to read response from relay server: %w", err)}
+			}
 
-		if strings.HasPrefix(response, "Error:") {
-			return ErrorMsg{Err: fmt.Errorf("relay server error: %s", strings.TrimSpace(response))}
-		}
+			if strings.HasPrefix(response, "Joined session:") {
+				break
+			}
 
-		var respMsg map[string]interface{}
-		if err := json.Unmarshal([]byte(response), &respMsg); err != nil {
-			return ErrorMsg{Err: fmt.Errorf("failed to unmarshal response from relay server: %w", err)}
-		}
+			if strings.HasPrefix(response, "Error:") {
+				return ErrorMsg{Err: fmt.Errorf("relay server error: %s", strings.TrimSpace(response))}
+			}
 
-		if respMsg["type"] == "error" {
-			return ErrorMsg{Err: fmt.Errorf("relay server error: %s", respMsg["message"])}
-		}
+			var respMsg map[string]interface{}
+			if err := json.Unmarshal([]byte(response), &respMsg); err != nil {
+				// Ignore messages that are not valid JSON
+				continue
+			}
 
-		if respMsg["type"] == "session_created" {
-			m.SessionID = respMsg["sessionID"].(string)
+			if respMsg["type"] == "error" {
+				return ErrorMsg{Err: fmt.Errorf("relay server error: %s", respMsg["message"])}
+			}
+
+			if respMsg["type"] == "session_created" {
+				m.SessionID = respMsg["sessionID"].(string)
+			}
 		}
 
 		return ConnectionMsg{Conn: conn}
