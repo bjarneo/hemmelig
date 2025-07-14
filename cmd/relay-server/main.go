@@ -227,7 +227,20 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 
 // relayData relays data from a client to all other clients in the session.
 func (s *RelayServer) relayData(client *Client, session *Session) {
-	defer s.removeClient(client, session)
+	defer func() {
+		s.removeClient(client, session)
+		// Notify remaining clients
+		notification, _ := json.Marshal(map[string]interface{}{
+			"type":   "user_left",
+			"userID": client.id,
+		})
+		notification = append(notification, '\n')
+		session.mu.Lock()
+		for _, otherClient := range session.Clients {
+			otherClient.conn.Write(notification)
+		}
+		session.mu.Unlock()
+	}()
 
 	reader := bufio.NewReader(client.conn)
 	for {
@@ -249,29 +262,36 @@ func (s *RelayServer) relayData(client *Client, session *Session) {
 
 		msg["sender"] = client.id
 
-		if msg["type"] == "file_accept" || msg["type"] == "file_reject" {
-			// These messages are sent from the receiver to the sender of the file
-			// so we need to swap the sender and recipient
-			originalSender := msg["sender"]
-			msg["sender"] = msg["recipient"]
-			msg["recipient"] = originalSender
-		}
-
-		recipientID, ok := msg["recipient"].(string)
-		if !ok {
-			log.Printf("Message from client '%s' has no recipient", client.id)
-			continue
-		}
-
-		session.mu.Lock()
-		if recipient, ok := session.Clients[recipientID]; ok {
-			outBytes, _ := json.Marshal(msg)
-			outBytes = append(outBytes, '\n')
-			if _, err := recipient.conn.Write(outBytes); err != nil {
-				log.Printf("Error relaying message to client '%s': %v", recipient.id, err)
+		if msg["type"] == "message" || msg["type"] == "file_offer" || msg["type"] == "file_accept" || msg["type"] == "file_reject" || msg["type"] == "file_chunk" || msg["type"] == "file_done" {
+			recipientID, ok := msg["recipient"].(string)
+			if !ok {
+				log.Printf("Message from client '%s' has no recipient", client.id)
+				continue
 			}
+
+			session.mu.Lock()
+			if recipient, ok := session.Clients[recipientID]; ok {
+				outBytes, _ := json.Marshal(msg)
+				outBytes = append(outBytes, '\n')
+				if _, err := recipient.conn.Write(outBytes); err != nil {
+					log.Printf("Error relaying message to client '%s': %v", recipient.id, err)
+				}
+			}
+			session.mu.Unlock()
+		} else {
+			// Broadcast to all clients
+			session.mu.Lock()
+			for _, otherClient := range session.Clients {
+				if otherClient.id != client.id {
+					outBytes, _ := json.Marshal(msg)
+					outBytes = append(outBytes, '\n')
+					if _, err := otherClient.conn.Write(outBytes); err != nil {
+						log.Printf("Error broadcasting message to client '%s': %v", otherClient.id, err)
+					}
+				}
+			}
+			session.mu.Unlock()
 		}
-		session.mu.Unlock()
 	}
 }
 
@@ -280,16 +300,6 @@ func (s *RelayServer) removeClient(client *Client, session *Session) {
 	session.mu.Lock()
 	delete(session.Clients, client.id)
 	log.Printf("Client '%s' disconnected from session '%s'.", client.id, session.ID)
-
-	// Notify remaining clients
-	notification, _ := json.Marshal(map[string]interface{}{
-		"type":   "user_left",
-		"userID": client.id,
-	})
-	notification = append(notification, '\n')
-	for _, otherClient := range session.Clients {
-		otherClient.conn.Write(notification)
-	}
 
 	if len(session.Clients) == 0 {
 		session.mu.Unlock()
