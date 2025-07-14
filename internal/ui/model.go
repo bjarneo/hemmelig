@@ -219,6 +219,7 @@ func (m *Model) Init() tea.Cmd {
 
 			if respMsg["type"] == "session_created" {
 				m.SessionID = respMsg["sessionID"].(string)
+				break
 			}
 		}
 
