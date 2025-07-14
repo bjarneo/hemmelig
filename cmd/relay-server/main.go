@@ -34,6 +34,7 @@ type Client struct {
 	id        string
 	nickname  string
 	publicKey []byte
+	ch        chan []byte
 }
 
 // Session represents a chat session with multiple connected clients.
@@ -121,6 +122,7 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 		id:        clientID,
 		nickname:  clientMsg.Nickname,
 		publicKey: clientMsg.PublicKey,
+		ch:        make(chan []byte),
 	}
 
 	switch clientMsg.Command {
@@ -225,8 +227,21 @@ func (s *RelayServer) handleConnection(conn net.Conn) {
 	}
 }
 
+func (s *RelayServer) readMessages(client *Client) {
+	reader := bufio.NewReader(client.conn)
+	for {
+		messageBytes, err := reader.ReadBytes('\n')
+		if err != nil {
+			close(client.ch)
+			return
+		}
+		client.ch <- messageBytes
+	}
+}
+
 // relayData relays data from a client to all other clients in the session.
 func (s *RelayServer) relayData(client *Client, session *Session) {
+	go s.readMessages(client)
 	defer func() {
 		s.removeClient(client, session)
 		// Notify remaining clients
@@ -242,19 +257,7 @@ func (s *RelayServer) relayData(client *Client, session *Session) {
 		session.mu.Unlock()
 	}()
 
-	reader := bufio.NewReader(client.conn)
-	for {
-		if err := client.conn.SetReadDeadline(time.Now().Add(5 * time.Minute)); err != nil {
-			log.Printf("Could not set read deadline for client '%s'.", client.id)
-			return
-		}
-
-		messageBytes, err := reader.ReadBytes('\n')
-		if err != nil {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-
+	for messageBytes := range client.ch {
 		var msg map[string]interface{}
 		log.Printf("Received message from client '%s': %s", client.id, string(messageBytes))
 		if err := json.Unmarshal(messageBytes, &msg); err != nil {
