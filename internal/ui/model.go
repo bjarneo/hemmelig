@@ -364,6 +364,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UserJoinedMsg:
 		m.Participants[msg.UserID] = msg.Nickname
+		m.Status = "CONNECTED"
 		m.Messages = append(m.Messages, Message{Timestamp: time.Now(), Sender: "System", Content: fmt.Sprintf("%s has joined the chat.", msg.Nickname)})
 		var privateKey, publicKey [32]byte
 		copy(privateKey[:], m.privateKey)
@@ -386,6 +387,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PublicKeyMsg:
 		m.Participants[msg.UserID] = msg.Nickname
+		m.Status = "CONNECTED"
 		var privateKey, publicKey [32]byte
 		copy(privateKey[:], m.privateKey)
 		copy(publicKey[:], msg.PublicKey)
