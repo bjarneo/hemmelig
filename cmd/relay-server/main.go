@@ -255,6 +255,7 @@ func (s *RelayServer) relayData(client *Client, session *Session) {
 		}
 
 		var msg map[string]interface{}
+		log.Printf("Received message from client '%s': %s", client.id, string(messageBytes))
 		if err := json.Unmarshal(messageBytes, &msg); err != nil {
 			log.Printf("Error unmarshaling message from client '%s': %v", client.id, err)
 			continue
@@ -296,6 +297,7 @@ func (s *RelayServer) relayData(client *Client, session *Session) {
 }
 
 func (s *RelayServer) removeClient(client *Client, session *Session) {
+	log.Printf("Removing client '%s' from session '%s'", client.id, session.ID)
 	client.conn.Close()
 	session.mu.Lock()
 	delete(session.Clients, client.id)
