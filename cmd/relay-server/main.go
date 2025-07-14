@@ -251,7 +251,8 @@ func (s *RelayServer) relayData(client *Client, session *Session) {
 
 		messageBytes, err := reader.ReadBytes('\n')
 		if err != nil {
-			return
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 
 		var msg map[string]interface{}
